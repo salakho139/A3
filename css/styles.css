@@ -80,6 +80,7 @@
   .tooltip {
     position: fixed;
     pointer-events: none;
+    z-index: 9999;              /* <-- make it topmost */
     background: rgba(255, 255, 255, 0.98);
     border: 1px solid var(--border);
     border-radius: 12px;
@@ -105,4 +106,233 @@
     border-radius: 50%;
     display: inline-block;
     background: #f28e2b;
+  }
+/* skyline night theme, stars + moon, no images */
+body.skyline-night {
+    background: radial-gradient(1200px 700px at 30% 10%,
+        #245aa8 0%,
+        #0b1a33 55%,
+        #060914 100%);
+    color: #eef4ff;
+  }
+  
+ /* stars layer, denser */
+body.skyline-night::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.95;
+  
+    background:
+      /* big-ish stars */
+      radial-gradient(2px 2px at 6% 18%, rgba(255,255,255,0.95) 55%, transparent 60%),
+      radial-gradient(2px 2px at 14% 30%, rgba(255,255,255,0.9) 55%, transparent 60%),
+      radial-gradient(2px 2px at 22% 14%, rgba(255,255,255,0.9) 55%, transparent 60%),
+      radial-gradient(2px 2px at 38% 22%, rgba(255,255,255,0.95) 55%, transparent 60%),
+      radial-gradient(2px 2px at 52% 12%, rgba(255,255,255,0.9) 55%, transparent 60%),
+      radial-gradient(2px 2px at 66% 18%, rgba(255,255,255,0.92) 55%, transparent 60%),
+      radial-gradient(2px 2px at 78% 10%, rgba(255,255,255,0.9) 55%, transparent 60%),
+      radial-gradient(2px 2px at 88% 22%, rgba(255,255,255,0.92) 55%, transparent 60%),
+  
+      /* lots of small stars */
+      radial-gradient(1px 1px at 8% 42%, rgba(255,255,255,0.70) 55%, transparent 60%),
+      radial-gradient(1px 1px at 10% 12%, rgba(255,255,255,0.75) 55%, transparent 60%),
+      radial-gradient(1px 1px at 12% 55%, rgba(255,255,255,0.65) 55%, transparent 60%),
+      radial-gradient(1px 1px at 16% 20%, rgba(255,255,255,0.75) 55%, transparent 60%),
+      radial-gradient(1px 1px at 18% 44%, rgba(255,255,255,0.62) 55%, transparent 60%),
+      radial-gradient(1px 1px at 20% 33%, rgba(255,255,255,0.70) 55%, transparent 60%),
+      radial-gradient(1px 1px at 24% 48%, rgba(255,255,255,0.65) 55%, transparent 60%),
+      radial-gradient(1px 1px at 26% 18%, rgba(255,255,255,0.70) 55%, transparent 60%),
+      radial-gradient(1px 1px at 28% 8%, rgba(255,255,255,0.68) 55%, transparent 60%),
+      radial-gradient(1px 1px at 30% 38%, rgba(255,255,255,0.62) 55%, transparent 60%),
+      radial-gradient(1px 1px at 34% 14%, rgba(255,255,255,0.72) 55%, transparent 60%),
+      radial-gradient(1px 1px at 36% 46%, rgba(255,255,255,0.62) 55%, transparent 60%),
+      radial-gradient(1px 1px at 40% 10%, rgba(255,255,255,0.70) 55%, transparent 60%),
+      radial-gradient(1px 1px at 42% 34%, rgba(255,255,255,0.62) 55%, transparent 60%),
+      radial-gradient(1px 1px at 44% 20%, rgba(255,255,255,0.70) 55%, transparent 60%),
+      radial-gradient(1px 1px at 46% 50%, rgba(255,255,255,0.60) 55%, transparent 60%),
+      radial-gradient(1px 1px at 48% 28%, rgba(255,255,255,0.66) 55%, transparent 60%),
+      radial-gradient(1px 1px at 50% 44%, rgba(255,255,255,0.60) 55%, transparent 60%),
+      radial-gradient(1px 1px at 54% 34%, rgba(255,255,255,0.62) 55%, transparent 60%),
+      radial-gradient(1px 1px at 56% 20%, rgba(255,255,255,0.68) 55%, transparent 60%),
+      radial-gradient(1px 1px at 58% 48%, rgba(255,255,255,0.60) 55%, transparent 60%),
+      radial-gradient(1px 1px at 60% 30%, rgba(255,255,255,0.65) 55%, transparent 60%),
+      radial-gradient(1px 1px at 62% 12%, rgba(255,255,255,0.72) 55%, transparent 60%),
+      radial-gradient(1px 1px at 64% 42%, rgba(255,255,255,0.60) 55%, transparent 60%),
+      radial-gradient(1px 1px at 68% 26%, rgba(255,255,255,0.64) 55%, transparent 60%),
+      radial-gradient(1px 1px at 70% 44%, rgba(255,255,255,0.60) 55%, transparent 60%),
+      radial-gradient(1px 1px at 72% 34%, rgba(255,255,255,0.62) 55%, transparent 60%),
+      radial-gradient(1px 1px at 74% 18%, rgba(255,255,255,0.70) 55%, transparent 60%),
+      radial-gradient(1px 1px at 76% 50%, rgba(255,255,255,0.60) 55%, transparent 60%),
+      radial-gradient(1px 1px at 80% 28%, rgba(255,255,255,0.66) 55%, transparent 60%),
+      radial-gradient(1px 1px at 82% 40%, rgba(255,255,255,0.60) 55%, transparent 60%),
+      radial-gradient(1px 1px at 84% 12%, rgba(255,255,255,0.70) 55%, transparent 60%),
+      radial-gradient(1px 1px at 86% 46%, rgba(255,255,255,0.60) 55%, transparent 60%),
+      radial-gradient(1px 1px at 90% 30%, rgba(255,255,255,0.66) 55%, transparent 60%),
+      radial-gradient(1px 1px at 92% 18%, rgba(255,255,255,0.70) 55%, transparent 60%),
+      radial-gradient(1px 1px at 94% 44%, rgba(255,255,255,0.60) 55%, transparent 60%),
+  
+      /* soft haze */
+      radial-gradient(900px 520px at 50% 10%, rgba(120,170,255,0.14) 0%, transparent 60%);
+  
+    animation: starsSparkle 6 steps(20, end) infinite;
+  }
+  /* extra star layer, different twinkle timing */
+body.skyline-night .wrap::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.55;
+    background:
+      radial-gradient(1px 1px at 12% 24%, rgba(255,255,255,0.85) 55%, transparent 60%),
+      radial-gradient(2px 2px at 27% 18%, rgba(255,255,255,0.9) 55%, transparent 60%),
+      radial-gradient(1px 1px at 41% 12%, rgba(255,255,255,0.8) 55%, transparent 60%),
+      radial-gradient(2px 2px at 63% 22%, rgba(255,255,255,0.9) 55%, transparent 60%),
+      radial-gradient(1px 1px at 74% 16%, rgba(255,255,255,0.75) 55%, transparent 60%),
+      radial-gradient(2px 2px at 86% 26%, rgba(255,255,255,0.9) 55%, transparent 60%);
+    animation: starsTwinkle2 3.8s ease-in-out infinite;
+  }
+  
+  @keyframes starsTwinkle2 {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 0.75; }
+  }
+  
+  /* moon layer */
+  body.skyline-night::after {
+    content: "";
+    position: fixed;
+    pointer-events: none;
+    z-index: 0;
+  
+    /* position + size */
+    width: 120px;
+    height: 120px;
+    right: 70px;
+    top: 48px;
+    border-radius: 999px;
+  
+    /* moon + glow */
+    background: radial-gradient(circle at 35% 35%,
+        rgba(255,255,255,0.95) 0%,
+        rgba(255,255,255,0.92) 35%,
+        rgba(230,240,255,0.9) 60%,
+        rgba(190,210,240,0.9) 100%);
+    box-shadow:
+      0 0 0 10px rgba(255,255,255,0.03),
+      0 0 45px rgba(190,220,255,0.22),
+      0 0 120px rgba(120,170,255,0.12);
+  
+    opacity: 0.95;
+  }
+  /* comet (shooting star) */
+body.skyline-night .comet {
+    position: fixed;
+    width: 280px;
+    height: 2px;
+    left: -320px;
+    top: 120px;
+    z-index: 0;
+    pointer-events: none;
+    transform: rotate(-18deg);
+    background: linear-gradient(90deg,
+      rgba(255,255,255,0) 0%,
+      rgba(170,210,255,0.25) 35%,
+      rgba(255,255,255,0.85) 70%,
+      rgba(255,255,255,1) 100%);
+    filter: drop-shadow(0 0 10px rgba(160,210,255,0.35));
+    animation: cometFly 7.5s linear infinite;
+    opacity: 0.95;
+  }
+  
+  /* comet head */
+  body.skyline-night .comet::after {
+    content: "";
+    position: absolute;
+    right: -6px;
+    top: -6px;
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    background: radial-gradient(circle,
+      rgba(255,255,255,1) 0%,
+      rgba(220,245,255,0.95) 35%,
+      rgba(140,200,255,0.5) 70%,
+      rgba(140,200,255,0) 100%);
+    box-shadow: 0 0 25px rgba(180,230,255,0.35);
+  }
+  
+  @keyframes cometFly {
+    0%   { transform: translateX(0) rotate(-18deg); opacity: 0; }
+    8%   { opacity: 0.95; }
+    70%  { opacity: 0.95; }
+    100% { transform: translateX(calc(100vw + 680px)) rotate(-18deg); opacity: 0; }
+  }
+  
+  /* keep your cards readable above the sky layers */
+  body.skyline-night .wrap,
+  body.skyline-night .controls,
+  body.skyline-night #chart {
+    position: relative;
+    z-index: 1;
+  }
+  
+  body.skyline-night .controls,
+  body.skyline-night #chart {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(201,217,240,0.25);
+  }
+  
+  body.skyline-night .sub,
+  body.skyline-night label,
+  body.skyline-night .note {
+    color: rgba(238,244,255,0.78);
+  }
+  
+  @keyframes starsSparkle {
+    0%   { opacity: 0.25; filter: brightness(0.9); }
+    25%  { opacity: 1.0;  filter: brightness(1.8); }
+    50%  { opacity: 0.35; filter: brightness(1.0); }
+    75%  { opacity: 0.95; filter: brightness(2.1); }
+    100% { opacity: 0.28; filter: brightness(0.95); }
+  }
+  /* optional skyline sunset theme, no images */
+body.skyline-sunset {
+    background: radial-gradient(1200px 700px at 25% 10%,
+        #ffe2c7 0%,
+        #ffd3b0 18%,
+        #f8b6a6 34%,
+        #c7dfff 62%,
+        #a6ccff 100%);
+    color: #13213c;
+  }
+  
+  /* soft sun glow */
+  body.skyline-sunset::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.55;
+    background:
+      radial-gradient(420px 320px at 18% 14%, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0.08) 55%, transparent 70%),
+      radial-gradient(900px 500px at 55% 20%, rgba(255,190,140,0.18) 0%, transparent 65%);
+  }
+  
+  /* keep cards readable */
+  body.skyline-sunset .controls,
+  body.skyline-sunset #chart {
+    background: rgba(255,255,255,0.85);
+    border-color: rgba(201,217,240,0.85);
+  }
+  
+  /* text + accents */
+  body.skyline-sunset .sub,
+  body.skyline-sunset label,
+  body.skyline-sunset .note {
+    color: rgba(19,33,60,0.72);
   }

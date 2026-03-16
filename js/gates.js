@@ -1,5 +1,5 @@
 // gates.js
-// clean layout, correct x positioning, country-code labels, blue->orange refusal palette
+// skyline look: glass towers + windows, refusal overlay in warm tone, optional night theme
 
 const CHART_DIV = d3.select("#chart");
 
@@ -41,7 +41,6 @@ function incomeRank(name) {
 function safeCode(code, countryName) {
   const c = (code == null) ? "" : String(code).trim();
   if (c && c.toLowerCase() !== "nan") return c.toUpperCase();
-  // fallback, not perfect but better than blank, lol
   return String(countryName || "").slice(0, 3).toUpperCase();
 }
 
@@ -77,7 +76,10 @@ function showTip(event, d) {
       <div>Refusal rate: <b>${fmtPct(d.refusal_rate)}</b></div>
     `);
 
-  moveTip(event);
+  const pad = 14;
+  tooltip
+    .style("left", (event.clientX + pad) + "px")
+    .style("top",  (event.clientY + pad) + "px");
 }
 
 function moveTip(event) {
@@ -102,7 +104,6 @@ d3.csv("data/gates.csv", d => ({
   refusal_rate: +d.refusal_rate
 })).then(data => {
 
-  // compute display code once
   data.forEach(d => { d.code = safeCode(d.country_code, d.consulate_country); });
 
   const states = Array.from(new Set(data.map(d => d.reporting_state))).sort(d3.ascending);
@@ -141,7 +142,7 @@ d3.csv("data/gates.csv", d => ({
 
     const margin = { top: 18, right: 18, bottom: 18, left: 18 };
     const panelGap = 18;
-    const panelH = 240;
+    const panelH = 250;
     const height = margin.top + margin.bottom + incomeKeys.length * panelH + (incomeKeys.length - 1) * panelGap;
 
     const containerW = getContainerWidth();
@@ -149,10 +150,10 @@ d3.csv("data/gates.csv", d => ({
 
     const cScale = refusalScale(maxRef);
 
-    // log-ish scaling so small volumes arent invisible
+    // log-ish scaling so small volumes show up, but still readable
     const hScale = d3.scaleLog()
       .domain([1, maxApps + 1])
-      .range([20, panelH - 92]);
+      .range([26, panelH - 98]);
 
     const svg = CHART_DIV.append("svg")
       .attr("height", height);
@@ -160,7 +161,49 @@ d3.csv("data/gates.csv", d => ({
     const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
     const defs = svg.append("defs");
 
-    // compute plot width (so we can scroll)
+    // ---- skyline styling defs (gradients + window patterns) ----
+    const night = document.body.classList.contains("skyline-night");
+
+    // building glass gradient
+    const glass = defs.append("linearGradient")
+      .attr("id", "glassGrad")
+      .attr("x1", "0%").attr("y1", "0%")
+      .attr("x2", "0%").attr("y2", "100%");
+    glass.append("stop").attr("offset", "0%").attr("stop-color", night ? "#86b6ff" : "#d8ecff").attr("stop-opacity", 0.85);
+    glass.append("stop").attr("offset", "55%").attr("stop-color", night ? "#3f78c9" : "#9fd0ff").attr("stop-opacity", 0.9);
+    glass.append("stop").attr("offset", "100%").attr("stop-color", night ? "#1f4a86" : "#6eaeea").attr("stop-opacity", 0.95);
+
+    // refusal gradient (warm)
+    const refg = defs.append("linearGradient")
+      .attr("id", "refusalGrad")
+      .attr("x1", "0%").attr("y1", "0%")
+      .attr("x2", "0%").attr("y2", "100%");
+    refg.append("stop").attr("offset", "0%").attr("stop-color", "#ffe3b8").attr("stop-opacity", 0.95);
+    refg.append("stop").attr("offset", "100%").attr("stop-color", "#f28e2b").attr("stop-opacity", 0.95);
+
+    // windows pattern (cool)
+    const winBlue = defs.append("pattern")
+      .attr("id", "winBlue")
+      .attr("patternUnits", "userSpaceOnUse")
+      .attr("width", 10)
+      .attr("height", 12);
+    winBlue.append("rect").attr("x", 2).attr("y", 2).attr("width", 2.6).attr("height", 3.2).attr("fill", night ? "rgba(235,245,255,0.55)" : "rgba(25,60,120,0.18)");
+    winBlue.append("rect").attr("x", 6).attr("y", 2).attr("width", 2.6).attr("height", 3.2).attr("fill", night ? "rgba(235,245,255,0.40)" : "rgba(25,60,120,0.12)");
+    winBlue.append("rect").attr("x", 2).attr("y", 7).attr("width", 2.6).attr("height", 3.2).attr("fill", night ? "rgba(235,245,255,0.40)" : "rgba(25,60,120,0.12)");
+    winBlue.append("rect").attr("x", 6).attr("y", 7).attr("width", 2.6).attr("height", 3.2).attr("fill", night ? "rgba(235,245,255,0.55)" : "rgba(25,60,120,0.18)");
+
+    // windows pattern (warm overlay)
+    const winWarm = defs.append("pattern")
+      .attr("id", "winWarm")
+      .attr("patternUnits", "userSpaceOnUse")
+      .attr("width", 10)
+      .attr("height", 12);
+    winWarm.append("rect").attr("x", 2).attr("y", 2).attr("width", 2.6).attr("height", 3.2).attr("fill", "rgba(90,35,0,0.18)");
+    winWarm.append("rect").attr("x", 6).attr("y", 2).attr("width", 2.6).attr("height", 3.2).attr("fill", "rgba(90,35,0,0.12)");
+    winWarm.append("rect").attr("x", 2).attr("y", 7).attr("width", 2.6).attr("height", 3.2).attr("fill", "rgba(90,35,0,0.12)");
+    winWarm.append("rect").attr("x", 6).attr("y", 7).attr("width", 2.6).attr("height", 3.2).attr("fill", "rgba(90,35,0,0.18)");
+
+    // ---- compute plot width so it can scroll ----
     let plotW = innerW;
     incomeKeys.forEach(inc => {
       let rows = (byIncome.get(inc) || []).slice();
@@ -170,12 +213,13 @@ d3.csv("data/gates.csv", d => ({
 
       if (topN !== 9999) rows = rows.slice(0, topN);
 
-      const minGate = 34;
-      plotW = Math.max(plotW, rows.length * minGate + 120);
+      const minGate = 44; // wider so it reads like buildings, not toothpicks
+      plotW = Math.max(plotW, rows.length * minGate + 140);
     });
 
     svg.attr("width", plotW + margin.left + margin.right);
 
+    // ---- draw panels ----
     incomeKeys.forEach((inc, i) => {
       let rows = (byIncome.get(inc) || []).slice();
 
@@ -187,15 +231,17 @@ d3.csv("data/gates.csv", d => ({
       const panelY = i * (panelH + panelGap);
       const panel = g.append("g").attr("transform", `translate(0,${panelY})`);
 
+      // panel background
       panel.append("rect")
         .attr("x", -8)
         .attr("y", 0)
         .attr("width", plotW + 16)
         .attr("height", panelH)
         .attr("rx", 12)
-        .attr("fill", "#ffffff")
-        .attr("stroke", "#c9d9f0");
+        .attr("fill", night ? "rgba(255,255,255,0.06)" : "#ffffff")
+        .attr("stroke", night ? "rgba(201,217,240,0.25)" : "#c9d9f0");
 
+      // clip to prevent leaks
       const clipId = `clip_panel_${i}`;
       defs.append("clipPath")
         .attr("id", clipId)
@@ -208,30 +254,37 @@ d3.csv("data/gates.csv", d => ({
       panel.append("text")
         .attr("x", 10)
         .attr("y", 22)
-        .attr("fill", "#13213c")
+        .attr("fill", night ? "rgba(238,244,255,0.92)" : "#13213c")
         .attr("font-size", 13)
         .attr("font-weight", 800)
         .attr("letter-spacing", "0.05em")
-        .text(String(inc).toUpperCase());
+        .text(String(inc).toUpperCase()); // caps ok here
 
       panel.append("text")
         .attr("x", 10)
         .attr("y", 42)
-        .attr("fill", "#51607a")
+        .attr("fill", night ? "rgba(238,244,255,0.70)" : "#51607a")
         .attr("font-size", 11)
         .text(`Showing ${rows.length} countries, sorted by ${sort === "refusal" ? "refusal rate" : "applications"}.`);
 
-      const baseY = panelH - 36;
+      const baseY = panelH - 44;
 
-      // IMPORTANT: x domain uses consulate_country (always unique), so gates don't stack
+      // ground line (makes it feel like skyline)
+      panel.append("line")
+        .attr("x1", 12).attr("x2", plotW - 12)
+        .attr("y1", baseY).attr("y2", baseY)
+        .attr("stroke", night ? "rgba(238,244,255,0.18)" : "rgba(43,90,166,0.22)")
+        .attr("stroke-width", 1);
+
+      // IMPORTANT: use consulate_country for x domain so no stacking bug
       const x = d3.scaleBand()
         .domain(rows.map(d => d.consulate_country))
         .range([12, plotW - 12])
-        .paddingInner(0.22)
-        .paddingOuter(0.08);
+        .paddingInner(0.24)
+        .paddingOuter(0.10);
 
       const gateW = x.bandwidth();
-      const innerPad = Math.max(2, gateW * 0.14);
+      const innerPad = Math.max(2, gateW * 0.12);
 
       const gates = panel.append("g")
         .attr("clip-path", `url(#${clipId})`)
@@ -241,40 +294,73 @@ d3.csv("data/gates.csv", d => ({
         .attr("class", "gate")
         .attr("transform", d => `translate(${x(d.consulate_country)},0)`);
 
-      gates.append("rect")
-        .attr("x", 0)
-        .attr("y", d => baseY - hScale(d.apps + 1))
-        .attr("width", gateW)
-        .attr("height", d => hScale(d.apps + 1))
-        .attr("fill", "none")
-        .attr("stroke", "#2b5aa6")
-        .attr("stroke-opacity", 0.32)
-        .attr("stroke-width", 1);
+      // building height
+      gates.each(function(d) {
+        const H = hScale(d.apps + 1);
+        const yTop = baseY - H;
 
-      gates.append("rect")
-        .attr("x", innerPad)
-        .attr("y", d => {
-          const H = hScale(d.apps + 1);
-          const blocked = H * d.refusal_rate;
-          return (baseY - H) + (H - blocked);
-        })
-        .attr("width", Math.max(2, gateW - innerPad * 2))
-        .attr("height", d => {
-          const H = hScale(d.apps + 1);
-          return Math.max(0, H * d.refusal_rate);
-        })
-        .attr("fill", d => cScale(d.refusal_rate))
-        .attr("opacity", 0.95);
+        const group = d3.select(this);
 
-      // use country code label (short, readable)
-      gates.append("text")
-        .attr("x", gateW / 2)
-        .attr("y", baseY + 16)
-        .attr("fill", "#51607a")
-        .attr("font-size", 10)
-        .attr("font-weight", 700)
-        .attr("text-anchor", "middle")
-        .text(d => d.code);
+        // building body (glass)
+        group.append("rect")
+          .attr("x", 0)
+          .attr("y", yTop)
+          .attr("width", gateW)
+          .attr("height", H)
+          .attr("rx", 3)
+          .attr("fill", "url(#glassGrad)")
+          .attr("stroke", night ? "rgba(238,244,255,0.22)" : "rgba(43,90,166,0.35)")
+          .attr("stroke-width", 1);
+
+        // windows on whole building
+        group.append("rect")
+          .attr("x", innerPad)
+          .attr("y", yTop + 6)
+          .attr("width", Math.max(2, gateW - innerPad * 2))
+          .attr("height", Math.max(0, H - 12))
+          .attr("fill", "url(#winBlue)")
+          .attr("opacity", night ? 0.65 : 0.55);
+
+        // glossy highlight strip
+        group.append("rect")
+          .attr("x", gateW * 0.10)
+          .attr("y", yTop + 6)
+          .attr("width", Math.max(2, gateW * 0.12))
+          .attr("height", Math.max(0, H - 12))
+          .attr("fill", night ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.22)");
+
+        // refusal overlay (blocked portion from top)
+        const blocked = H * d.refusal_rate;
+        const yBlocked = yTop + (H - blocked);
+
+        group.append("rect")
+          .attr("x", innerPad)
+          .attr("y", yBlocked)
+          .attr("width", Math.max(2, gateW - innerPad * 2))
+          .attr("height", Math.max(0, blocked))
+          .attr("rx", 2)
+          .attr("fill", "url(#refusalGrad)")
+          .attr("opacity", 0.95);
+
+        // refusal overlay windows
+        group.append("rect")
+          .attr("x", innerPad)
+          .attr("y", yBlocked)
+          .attr("width", Math.max(2, gateW - innerPad * 2))
+          .attr("height", Math.max(0, blocked))
+          .attr("fill", "url(#winWarm)")
+          .attr("opacity", 0.55);
+
+        // label (code)
+        group.append("text")
+          .attr("x", gateW / 2)
+          .attr("y", baseY + 18)
+          .attr("fill", night ? "rgba(238,244,255,0.72)" : "#51607a")
+          .attr("font-size", 11)
+          .attr("font-weight", 800)
+          .attr("text-anchor", "middle")
+          .text(d.code);
+      });
 
       gates
         .on("mouseenter", (event, d) => showTip(event, d))
@@ -287,10 +373,10 @@ d3.csv("data/gates.csv", d => ({
     leg.append("text")
       .attr("x", 0)
       .attr("y", 14)
-      .attr("fill", "#51607a")
+      .attr("fill", night ? "rgba(238,244,255,0.78)" : "#51607a")
       .attr("font-size", 11)
       .attr("font-weight", 700)
-      .text("Refusal rate");
+      .text("Refusal rate (low → high)");
 
     const steps = d3.range(0, 1.0001, 0.1);
     leg.selectAll("rect")
@@ -307,7 +393,7 @@ d3.csv("data/gates.csv", d => ({
       .join("text")
       .attr("x", (d,i) => i === 0 ? 0 : steps.length * 20 - 2)
       .attr("y", 44)
-      .attr("fill", "#51607a")
+      .attr("fill", night ? "rgba(238,244,255,0.70)" : "#51607a")
       .attr("font-size", 10)
       .attr("font-weight", 700)
       .attr("text-anchor", (d,i) => i === 0 ? "start" : "end")
