@@ -1,12 +1,9 @@
 # prep_gates.R
-
-# if packages missing error, run this
-# install.packages(c("readr","dplyr"))
+# make a clean csv for the site, summed by year/state/country, simple
 
 library(readr)
 library(dplyr)
 
-# setting paths
 in_path  <- file.path("data", "visitor-visa-statistics.csv")
 out_path <- file.path("data", "gates.csv")
 
@@ -23,6 +20,7 @@ gates <- raw %>%
     reporting_year,
     reporting_state,
     consulate_country,
+    consulate_country_code,
     consulate_country_income_group,
     consulate_country_region
   ) %>%
@@ -33,13 +31,14 @@ gates <- raw %>%
     .groups = "drop"
   ) %>%
   mutate(
-    denom = pmax(issued + not_issued, 1),  # avoid divide by 0, annoying but needed
+    denom = pmax(issued + not_issued, 1),
     refusal_rate = not_issued / denom
   ) %>%
-  select(
+  transmute(
     year = reporting_year,
     reporting_state,
     consulate_country,
+    country_code = consulate_country_code,
     income_group = consulate_country_income_group,
     region = consulate_country_region,
     apps,
@@ -50,5 +49,4 @@ gates <- raw %>%
   arrange(year, reporting_state, desc(apps))
 
 write_csv(gates, out_path)
-
 cat("done, wrote:", out_path, "\n")

@@ -1,5 +1,5 @@
 // gates.js
-// ok, load the csv, then draw “gate” shapes, not too deep, just enough to look good
+// clean layout, correct x positioning, country-code labels, blue->orange refusal palette
 
 const CHART_DIV = d3.select("#chart");
 
@@ -21,12 +21,16 @@ const incomeOrder = [
   "Not classified"
 ];
 
-function fmtInt(x) {
-  return d3.format(",")(Math.round(x));
-}
+function fmtInt(x) { return d3.format(",")(Math.round(x)); }
+function fmtPct(x) { return d3.format(".1%")(x); }
 
-function fmtPct(x) {
-  return d3.format(".1%")(x);
+function cleanGroup(s) {
+  if (s == null) return "Not classified";
+  const t = String(s).trim();
+  if (!t) return "Not classified";
+  const low = t.toLowerCase();
+  if (low === "nan" || low === "na" || low === "null" || low === "undefined") return "Not classified";
+  return t;
 }
 
 function incomeRank(name) {
@@ -34,30 +38,43 @@ function incomeRank(name) {
   return i === -1 ? 999 : i;
 }
 
-// resize helper
-function getSize() {
-  const w = CHART_DIV.node().clientWidth;
-  return { width: w, height: 820 }; // a bit tall, so panels breathe
+function safeCode(code, countryName) {
+  const c = (code == null) ? "" : String(code).trim();
+  if (c && c.toLowerCase() !== "nan") return c.toUpperCase();
+  // fallback, not perfect but better than blank, lol
+  return String(countryName || "").slice(0, 3).toUpperCase();
 }
 
-function colorScale(maxRefusal) {
-  return d3.scaleSequential(d3.interpolateReds).domain([0, maxRefusal || 0.8]);
+function getContainerWidth() {
+  return CHART_DIV.node().clientWidth;
+}
+
+// low -> light blue, high -> orange
+function refusalScale(maxRef) {
+  const interp = d3.interpolateRgbBasis([
+    "#d7ecff",
+    "#9fd0ff",
+    "#ffd7a8",
+    "#f28e2b"
+  ]);
+  return d3.scaleSequential(interp).domain([0, maxRef || 0.8]);
 }
 
 function showTip(event, d) {
   tooltip
     .style("opacity", 1)
     .html(`
-      <div style="font-weight:700;margin-bottom:6px">${d.consulate_country}</div>
-      <div>year: <b>${d.year}</b></div>
-      <div>reporting state: <b>${d.reporting_state}</b></div>
-      <div>income group: <b>${d.income_group}</b></div>
-      <div>region: <b>${d.region}</b></div>
-      <hr style="border:0;border-top:1px solid #2b2f3a;margin:8px 0">
-      <div>applications: <b>${fmtInt(d.apps)}</b></div>
-      <div>issued: <b>${fmtInt(d.issued)}</b></div>
-      <div>not issued: <b>${fmtInt(d.not_issued)}</b></div>
-      <div>refusal rate: <b>${fmtPct(d.refusal_rate)}</b></div>
+      <div style="font-weight:800;margin-bottom:6px">${d.consulate_country}</div>
+      <div>Country code: <b>${d.code}</b></div>
+      <div>Year: <b>${d.year}</b></div>
+      <div>Reporting state: <b>${d.reporting_state}</b></div>
+      <div>Income group: <b>${d.income_group}</b></div>
+      <div>Region: <b>${d.region}</b></div>
+      <hr style="border:0;border-top:1px solid #c9d9f0;margin:8px 0">
+      <div>Applications: <b>${fmtInt(d.apps)}</b></div>
+      <div>Issued: <b>${fmtInt(d.issued)}</b></div>
+      <div>Not issued: <b>${fmtInt(d.not_issued)}</b></div>
+      <div>Refusal rate: <b>${fmtPct(d.refusal_rate)}</b></div>
     `);
 
   moveTip(event);
@@ -70,23 +87,24 @@ function moveTip(event) {
     .style("top",  (event.clientY + pad) + "px");
 }
 
-function hideTip() {
-  tooltip.style("opacity", 0);
-}
+function hideTip() { tooltip.style("opacity", 0); }
 
 d3.csv("data/gates.csv", d => ({
   year: +d.year,
   reporting_state: d.reporting_state,
   consulate_country: d.consulate_country,
-  income_group: d.income_group || "Not classified",
-  region: d.region || "Unknown",
+  country_code: d.country_code,
+  income_group: cleanGroup(d.income_group),
+  region: (d.region && String(d.region).trim()) ? d.region : "Unknown",
   apps: +d.apps,
   issued: +d.issued,
   not_issued: +d.not_issued,
   refusal_rate: +d.refusal_rate
 })).then(data => {
 
-  // fill dropdowns
+  // compute display code once
+  data.forEach(d => { d.code = safeCode(d.country_code, d.consulate_country); });
+
   const states = Array.from(new Set(data.map(d => d.reporting_state))).sort(d3.ascending);
   const years  = Array.from(new Set(data.map(d => d.year))).sort((a,b) => a - b);
 
@@ -102,148 +120,177 @@ d3.csv("data/gates.csv", d => ({
     .attr("value", d => d)
     .text(d => d);
 
-  // defaults, pick something that exists
   selState.property("value", states.includes("France") ? "France" : states[0]);
   selYear.property("value", years.includes(2022) ? 2022 : years[years.length - 1]);
 
-  // draw once, then update on change
   function update() {
     const state = selState.property("value");
     const year  = +selYear.property("value");
     const sort  = selSort.property("value");
     const topN  = +selTopN.property("value");
 
-    const filtered = data.filter(d => d.reporting_state === state && d.year === year);
+    const filtered = data.filter(d => d.reporting_state === state && d.year === year && d.apps > 0);
 
-    // global scales for this view
     const maxApps = d3.max(filtered, d => d.apps) || 1;
     const maxRef  = d3.max(filtered, d => d.refusal_rate) || 0.8;
 
-    const { width, height } = getSize();
     CHART_DIV.selectAll("*").remove();
 
-    const svg = CHART_DIV.append("svg")
-      .attr("viewBox", `0 0 ${width} ${height}`)
-      .attr("width", "100%")
-      .attr("height", "auto");
-
-    const margin = { top: 20, right: 18, bottom: 18, left: 18 };
-    const innerW = width - margin.left - margin.right;
-    const innerH = height - margin.top - margin.bottom;
-
-    const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
-
-    // group into income panels
     const byIncome = d3.group(filtered, d => d.income_group);
     const incomeKeys = Array.from(byIncome.keys()).sort((a,b) => incomeRank(a) - incomeRank(b));
 
+    const margin = { top: 18, right: 18, bottom: 18, left: 18 };
     const panelGap = 18;
-    const panelH = (innerH - panelGap * (incomeKeys.length - 1)) / Math.max(1, incomeKeys.length);
+    const panelH = 240;
+    const height = margin.top + margin.bottom + incomeKeys.length * panelH + (incomeKeys.length - 1) * panelGap;
 
-    // height mapping, sqrt keeps small countries visible, without the log drama
-    const hScale = d3.scaleSqrt().domain([0, maxApps]).range([0, panelH - 55]);
+    const containerW = getContainerWidth();
+    const innerW = containerW - margin.left - margin.right;
 
-    const cScale = colorScale(maxRef);
+    const cScale = refusalScale(maxRef);
+
+    // log-ish scaling so small volumes arent invisible
+    const hScale = d3.scaleLog()
+      .domain([1, maxApps + 1])
+      .range([20, panelH - 92]);
+
+    const svg = CHART_DIV.append("svg")
+      .attr("height", height);
+
+    const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+    const defs = svg.append("defs");
+
+    // compute plot width (so we can scroll)
+    let plotW = innerW;
+    incomeKeys.forEach(inc => {
+      let rows = (byIncome.get(inc) || []).slice();
+
+      if (sort === "refusal") rows.sort((a,b) => d3.descending(a.refusal_rate, b.refusal_rate));
+      else rows.sort((a,b) => d3.descending(a.apps, b.apps));
+
+      if (topN !== 9999) rows = rows.slice(0, topN);
+
+      const minGate = 34;
+      plotW = Math.max(plotW, rows.length * minGate + 120);
+    });
+
+    svg.attr("width", plotW + margin.left + margin.right);
 
     incomeKeys.forEach((inc, i) => {
-      let rows = byIncome.get(inc) || [];
+      let rows = (byIncome.get(inc) || []).slice();
 
-      rows = rows.filter(d => d.apps > 0);
-
-      if (sort === "refusal") {
-        rows.sort((a,b) => d3.descending(a.refusal_rate, b.refusal_rate));
-      } else {
-        rows.sort((a,b) => d3.descending(a.apps, b.apps));
-      }
+      if (sort === "refusal") rows.sort((a,b) => d3.descending(a.refusal_rate, b.refusal_rate));
+      else rows.sort((a,b) => d3.descending(a.apps, b.apps));
 
       if (topN !== 9999) rows = rows.slice(0, topN);
 
       const panelY = i * (panelH + panelGap);
       const panel = g.append("g").attr("transform", `translate(0,${panelY})`);
 
+      panel.append("rect")
+        .attr("x", -8)
+        .attr("y", 0)
+        .attr("width", plotW + 16)
+        .attr("height", panelH)
+        .attr("rx", 12)
+        .attr("fill", "#ffffff")
+        .attr("stroke", "#c9d9f0");
+
+      const clipId = `clip_panel_${i}`;
+      defs.append("clipPath")
+        .attr("id", clipId)
+        .append("rect")
+        .attr("x", 6)
+        .attr("y", 8)
+        .attr("width", plotW - 12)
+        .attr("height", panelH - 16);
+
       panel.append("text")
-        .attr("x", 0)
-        .attr("y", 14)
-        .attr("fill", "#e8e8e8")
+        .attr("x", 10)
+        .attr("y", 22)
+        .attr("fill", "#13213c")
         .attr("font-size", 13)
-        .attr("font-weight", 700)
-        .text(inc);
+        .attr("font-weight", 800)
+        .attr("letter-spacing", "0.05em")
+        .text(String(inc).toUpperCase());
 
       panel.append("text")
-        .attr("x", 0)
-        .attr("y", 32)
-        .attr("fill", "#bdbdbd")
+        .attr("x", 10)
+        .attr("y", 42)
+        .attr("fill", "#51607a")
         .attr("font-size", 11)
-        .text(`showing ${rows.length} countries, sorted by ${sort === "refusal" ? "refusal rate" : "applications"}`);
+        .text(`Showing ${rows.length} countries, sorted by ${sort === "refusal" ? "refusal rate" : "applications"}.`);
 
-      const baseY = panelH - 10;
+      const baseY = panelH - 36;
 
+      // IMPORTANT: x domain uses consulate_country (always unique), so gates don't stack
       const x = d3.scaleBand()
         .domain(rows.map(d => d.consulate_country))
-        .range([0, innerW])
-        .paddingInner(0.18)
-        .paddingOuter(0.05);
+        .range([12, plotW - 12])
+        .paddingInner(0.22)
+        .paddingOuter(0.08);
 
       const gateW = x.bandwidth();
-      const innerPad = Math.max(1, gateW * 0.12);
+      const innerPad = Math.max(2, gateW * 0.14);
 
-      const gates = panel.selectAll(".gate")
+      const gates = panel.append("g")
+        .attr("clip-path", `url(#${clipId})`)
+        .selectAll(".gate")
         .data(rows, d => d.consulate_country)
         .join("g")
         .attr("class", "gate")
         .attr("transform", d => `translate(${x(d.consulate_country)},0)`);
 
-      // frame
       gates.append("rect")
         .attr("x", 0)
-        .attr("y", d => baseY - hScale(d.apps))
+        .attr("y", d => baseY - hScale(d.apps + 1))
         .attr("width", gateW)
-        .attr("height", d => hScale(d.apps))
+        .attr("height", d => hScale(d.apps + 1))
         .attr("fill", "none")
-        .attr("stroke", "#3a4052")
+        .attr("stroke", "#2b5aa6")
+        .attr("stroke-opacity", 0.32)
         .attr("stroke-width", 1);
 
-      // blocked part (not issued), from top, so it looks like the gate is “closed”
       gates.append("rect")
         .attr("x", innerPad)
         .attr("y", d => {
-          const H = hScale(d.apps);
+          const H = hScale(d.apps + 1);
           const blocked = H * d.refusal_rate;
           return (baseY - H) + (H - blocked);
         })
-        .attr("width", Math.max(1, gateW - innerPad * 2))
+        .attr("width", Math.max(2, gateW - innerPad * 2))
         .attr("height", d => {
-          const H = hScale(d.apps);
+          const H = hScale(d.apps + 1);
           return Math.max(0, H * d.refusal_rate);
         })
         .attr("fill", d => cScale(d.refusal_rate))
         .attr("opacity", 0.95);
 
-      // tiny country label, rotated, readable-ish for top 30
+      // use country code label (short, readable)
       gates.append("text")
         .attr("x", gateW / 2)
-        .attr("y", baseY + 8)
-        .attr("fill", "#9aa0b2")
-        .attr("font-size", 9)
-        .attr("text-anchor", "end")
-        .attr("transform", `rotate(-60)`)
-        .text(d => d.consulate_country);
+        .attr("y", baseY + 16)
+        .attr("fill", "#51607a")
+        .attr("font-size", 10)
+        .attr("font-weight", 700)
+        .attr("text-anchor", "middle")
+        .text(d => d.code);
 
-      // hover
       gates
         .on("mouseenter", (event, d) => showTip(event, d))
         .on("mousemove", (event) => moveTip(event))
         .on("mouseleave", hideTip);
     });
 
-    // small legend, not fancy
-    const leg = g.append("g").attr("transform", `translate(${innerW - 230},0)`);
+    // legend
+    const leg = g.append("g").attr("transform", `translate(${plotW - 270},0)`);
     leg.append("text")
       .attr("x", 0)
       .attr("y", 14)
-      .attr("fill", "#bdbdbd")
+      .attr("fill", "#51607a")
       .attr("font-size", 11)
-      .text("refusal rate");
+      .attr("font-weight", 700)
+      .text("Refusal rate");
 
     const steps = d3.range(0, 1.0001, 0.1);
     leg.selectAll("rect")
@@ -258,23 +305,20 @@ d3.csv("data/gates.csv", d => ({
     leg.selectAll("text.pct")
       .data([0, maxRef])
       .join("text")
-      .attr("class", "pct")
       .attr("x", (d,i) => i === 0 ? 0 : steps.length * 20 - 2)
       .attr("y", 44)
-      .attr("fill", "#9aa0b2")
+      .attr("fill", "#51607a")
       .attr("font-size", 10)
+      .attr("font-weight", 700)
       .attr("text-anchor", (d,i) => i === 0 ? "start" : "end")
       .text(d => fmtPct(d));
   }
 
-  // hook up events
   selState.on("change", update);
   selYear.on("change", update);
   selSort.on("change", update);
   selTopN.on("change", update);
 
-  // redraw on resize, so it doesnt look busted
   window.addEventListener("resize", update);
-
   update();
 });

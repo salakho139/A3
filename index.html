@@ -3,40 +3,41 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>visa gate skyline</title>
+  <title>Visa Gate Skyline</title>
   <link rel="stylesheet" href="css/styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 </head>
 <body>
   <div class="wrap">
-    <h1>visa gate skyline</h1>
+    <h1>Visa Gate Skyline</h1>
     <p class="sub">
-      gates show how “open” a reporting state is, depending on where people apply from,
-      frame height = applications, blocked area = not issued
+      Gates show how “open” a reporting state is, depending on where people apply from.
+      Frame height = applications, blocked area = not issued.
     </p>
 
     <div class="controls">
-      <label>reporting state
+      <label>Reporting state
         <select id="state"></select>
       </label>
 
-      <label>year
+      <label>Year
         <select id="year"></select>
       </label>
 
-      <label>sort
+      <label>Sort
         <select id="sort">
-          <option value="refusal">refusal rate</option>
-          <option value="apps">applications</option>
+          <option value="refusal">Refusal rate</option>
+          <option value="apps">Applications</option>
         </select>
       </label>
 
-      <label>show
+      <label>Show
         <select id="topn">
-          <option value="20">top 20</option>
-          <option value="30" selected>top 30</option>
-          <option value="50">top 50</option>
-          <option value="9999">all</option>
+          <option value="10">Top 10</option>
+          <option value="20">Top 20</option>
+          <option value="30" selected>Top 30</option>
+          <option value="50">Top 50</option>
+          <option value="9999">All</option>
         </select>
       </label>
     </div>
@@ -45,8 +46,12 @@
 
     <div class="note">
       <span class="dot"></span>
-      darker red = higher refusal rate
+      Labels show country codes (hover for full names). Higher refusal rate → more orange.
     </div>
+
+    <p class="sub" style="margin-top:10px;font-size:12px;">
+      Source: European Union Visitor Visa Database (Schengen short-stay visa statistics, cleaned time series).
+    </p>
   </div>
 
   <script src="js/gates.js"></script>
