@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>visa gate skyline</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+</head>
+<body>
+  <div class="wrap">
+    <h1>visa gate skyline</h1>
+    <p class="sub">
+      gates show how “open” a reporting state is, depending on where people apply from,
+      frame height = applications, blocked area = not issued
+    </p>
+
+    <div class="controls">
+      <label>reporting state
+        <select id="state"></select>
+      </label>
+
+      <label>year
+        <select id="year"></select>
+      </label>
+
+      <label>sort
+        <select id="sort">
+          <option value="refusal">refusal rate</option>
+          <option value="apps">applications</option>
+        </select>
+      </label>
+
+      <label>show
+        <select id="topn">
+          <option value="20">top 20</option>
+          <option value="30" selected>top 30</option>
+          <option value="50">top 50</option>
+          <option value="9999">all</option>
+        </select>
+      </label>
+    </div>
+
+    <div id="chart"></div>
+
+    <div class="note">
+      <span class="dot"></span>
+      darker red = higher refusal rate
+    </div>
+  </div>
+
+  <script src="js/gates.js"></script>
+</body>
+</html>
