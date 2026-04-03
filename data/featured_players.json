@@ -1,66 +1,50 @@
 [
   {
-    "player_id": 183284,
-    "player_name": "Ryan Inniss",
-    "journey_moves": 19,
-    "journey_distance_km": 3305.8803409743014,
-    "primary_pos": "CB",
-    "primary_nation": "England"
-  },
-  {
-    "player_id": 110864,
-    "player_name": "Sam Johnstone",
-    "journey_moves": 19,
-    "journey_distance_km": 2009.1294854487517,
-    "primary_pos": "GK",
-    "primary_nation": "England"
-  },
-  {
-    "player_id": 61838,
-    "player_name": "Jonathan Obika",
-    "journey_moves": 19,
-    "journey_distance_km": 1646.936829724885,
+    "player_id": 8198,
+    "player_name": "Cristiano Ronaldo",
     "primary_pos": "CF",
-    "primary_nation": "England"
+    "primary_nation": "Portugal"
   },
   {
-    "player_id": 113045,
-    "player_name": "Rub\u00e9n P\u00e9rez",
-    "journey_moves": 17,
-    "journey_distance_km": 6841.292434508597,
-    "primary_pos": "DM",
+    "player_id": 96341,
+    "player_name": "Romelu Lukaku",
+    "primary_pos": "CF",
+    "primary_nation": "Belgium"
+  },
+  {
+    "player_id": 128223,
+    "player_name": "Álvaro Morata",
+    "primary_pos": "CF",
     "primary_nation": "Spain"
   },
   {
-    "player_id": 62415,
-    "player_name": "Panagiotis Tachtsidis",
-    "journey_moves": 16,
-    "journey_distance_km": 11322.910950279282,
-    "primary_pos": "DM",
-    "primary_nation": "Greece"
+    "player_id": 39153,
+    "player_name": "Gonzalo Higuaín",
+    "primary_pos": "CF",
+    "primary_nation": "Argentina"
   },
   {
-    "player_id": 183334,
-    "player_name": "Patrick Bamford",
-    "journey_moves": 16,
-    "journey_distance_km": 2799.75299358511,
+    "player_id": 40433,
+    "player_name": "Alexis Sánchez",
+    "primary_pos": "CF",
+    "primary_nation": "Chile"
+  },
+  {
+    "player_id": 3455,
+    "player_name": "Zlatan Ibrahimovic",
+    "primary_pos": "CF",
+    "primary_nation": "Sweden"
+  },
+  {
+    "player_id": 3332,
+    "player_name": "Wayne Rooney",
     "primary_pos": "CF",
     "primary_nation": "England"
   },
   {
-    "player_id": 61814,
-    "player_name": "David Button",
-    "journey_moves": 16,
-    "journey_distance_km": 2788.1983884118267,
-    "primary_pos": "GK",
-    "primary_nation": "England"
-  },
-  {
-    "player_id": 81455,
-    "player_name": "Juan Iturbe",
-    "journey_moves": 15,
-    "journey_distance_km": 77092.70320561675,
-    "primary_pos": "LW",
-    "primary_nation": "Paraguay"
+    "player_id": 39381,
+    "player_name": "Gareth Bale",
+    "primary_pos": "RW",
+    "primary_nation": "Wales"
   }
 ]
