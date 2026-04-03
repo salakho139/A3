@@ -1,59 +1,179 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Visa Gate Skyline</title>
-  <link rel="stylesheet" href="css/styles.css" />
-  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Journeys Through Europe | Player Transfer Map</title>
+  <meta name="description" content="An interactive D3 story about football careers moving across Europe's seven major leagues." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
 </head>
-<body class="skyline-night">
-  <div class="wrap">
-    <h1>Visa Gate Skyline</h1>
-    <p class="sub">
-      Gates show how “open” a reporting state is, depending on where people apply from.
-      Frame height = applications, blocked area = not issued.
-    </p>
+<body>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+  <div class="grid-overlay"></div>
 
-    <div class="controls">
-      <label>Reporting state
-        <select id="state"></select>
-      </label>
-
-      <label>Year
-        <select id="year"></select>
-      </label>
-
-      <label>Sort
-        <select id="sort">
-          <option value="refusal">Refusal rate</option>
-          <option value="apps">Applications</option>
-        </select>
-      </label>
-
-      <label>Show
-        <select id="topn">
-          <option value="10">Top 10</option>
-          <option value="20">Top 20</option>
-          <option value="30" selected>Top 30</option>
-          <option value="50">Top 50</option>
-          <option value="9999">All</option>
-        </select>
-      </label>
+  <header class="hero shell">
+    <div class="hero-copy">
+      <p class="eyebrow">CSC316 · Interactive visualization</p>
+      <h1>Journeys Through Europe</h1>
+      <p class="hero-subtitle">
+        Football careers are rarely straight lines. This map follows player movement across
+        <span>seven major European leagues</span> and turns every transfer into a route, a detour, or a turning point.
+      </p>
+      <div class="hero-tags">
+        <span>2009–2021</span>
+        <span>7 leagues</span>
+        <span>25.5k mapped transfer events</span>
+      </div>
     </div>
 
-    <div id="chart"></div>
+    <aside class="hero-note glass">
+      <p class="mini-label">Read this view</p>
+      <p id="storyline">
+        Start with a season to see the transfer network pulse. Then click a player to switch from league-wide flow to an individual career journey.
+      </p>
+      <div class="hero-note-footer">
+        <div>
+          <span class="mini-label">Focus</span>
+          <strong id="focus-mode-label">League pulse</strong>
+        </div>
+        <button id="reset-player" class="ghost-button" type="button" hidden>Reset spotlight</button>
+      </div>
+    </aside>
+  </header>
 
-    <div class="note">
-      <span class="dot"></span>
-      Labels show country codes (hover for full names). Higher refusal rate → more orange.
-    </div>
+  <main class="shell main-layout">
+    <section class="controls-column">
+      <div class="glass control-card">
+        <div class="card-header">
+          <div>
+            <p class="mini-label">Spotlight a player</p>
+            <h2>Career explorer</h2>
+          </div>
+        </div>
 
-    <p class="sub" style="margin-top:10px;font-size:12px;">
-      Source: European Union Visitor Visa Database (Schengen short-stay visa statistics, cleaned time series).
-    </p>
-  </div>
+        <label class="field-label" for="player-search">Search player</label>
+        <input id="player-search" class="text-input" type="text" placeholder="Try Sam Johnstone, Patrick Bamford, Ryan Inniss..." list="player-suggestions" autocomplete="off" />
+        <datalist id="player-suggestions"></datalist>
 
-  <script src="js/gates.js"></script>
+        <div class="featured-wrap">
+          <p class="mini-label">Quick picks</p>
+          <div id="featured-players" class="chip-grid"></div>
+        </div>
+      </div>
+
+      <div class="glass control-card">
+        <div class="card-header">
+          <div>
+            <p class="mini-label">Filter the map</p>
+            <h2>Controls</h2>
+          </div>
+          <button id="play-toggle" class="play-button" type="button" aria-pressed="false">Play seasons</button>
+        </div>
+
+        <div class="season-block">
+          <div class="season-headline">
+            <span class="mini-label">Season</span>
+            <strong id="season-value">2016</strong>
+          </div>
+          <input id="season-slider" type="range" min="2009" max="2021" step="1" value="2016" />
+          <div class="range-labels">
+            <span>2009</span>
+            <span>2021</span>
+          </div>
+        </div>
+
+        <div class="control-grid">
+          <div>
+            <label class="field-label" for="league-select">League</label>
+            <select id="league-select" class="select-input"></select>
+          </div>
+          <div>
+            <label class="field-label" for="position-select">Position</label>
+            <select id="position-select" class="select-input"></select>
+          </div>
+        </div>
+
+        <div class="toggle-group">
+          <p class="field-label">Window</p>
+          <div id="window-buttons" class="segmented"></div>
+        </div>
+
+        <div class="toggle-group">
+          <p class="field-label">Move type</p>
+          <div id="move-type-buttons" class="segmented wrap"></div>
+        </div>
+      </div>
+
+      <div class="glass control-card">
+        <div class="card-header compact">
+          <div>
+            <p class="mini-label">What the current filter is showing</p>
+            <h2>At a glance</h2>
+          </div>
+        </div>
+
+        <div id="stats-grid" class="stats-grid"></div>
+        <p id="filter-summary" class="summary-copy"></p>
+      </div>
+
+      <div class="glass control-card">
+        <div class="card-header compact">
+          <div>
+            <p class="mini-label">Click a name to spotlight it</p>
+            <h2 id="list-title">Most mobile players</h2>
+          </div>
+        </div>
+
+        <div id="list-container" class="list-container"></div>
+      </div>
+    </section>
+
+    <section class="viz-column">
+      <div class="glass viz-card">
+        <div class="viz-header">
+          <div>
+            <p class="mini-label">Interactive transfer map</p>
+            <h2 id="map-title">League pulse · 2016</h2>
+          </div>
+          <div class="legend">
+            <span><i class="dot transfer"></i> Transfer</span>
+            <span><i class="dot loan"></i> Loan</span>
+            <span><i class="dot free"></i> Free</span>
+            <span><i class="dot loan_end"></i> Loan end</span>
+          </div>
+        </div>
+
+        <div id="map-wrap" class="map-wrap">
+          <svg id="map-svg" viewBox="0 0 1100 720" preserveAspectRatio="xMidYMid meet"></svg>
+          <div id="tooltip" class="tooltip" hidden></div>
+        </div>
+
+        <div class="viz-footer">
+          <div class="footer-block">
+            <p class="mini-label">Current insight</p>
+            <p id="map-insight" class="footer-copy"></p>
+          </div>
+          <div class="footer-block">
+            <p class="mini-label">Data note</p>
+            <p class="footer-copy">
+              Route coordinates are inferred from club venue/location matches. Use the full master CSV if you later want club spending or broader flow views.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="shell footer">
+    <p>Built with D3.js. Base transfer data from the user’s cleaned Transfermarkt-style dataset. Club coordinates enriched from Wikidata / stadium matching.</p>
+  </footer>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
+  <script src="script.js"></script>
 </body>
 </html>
