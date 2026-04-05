@@ -20,27 +20,26 @@
       <p class="eyebrow">CSC316 · Interactive visualization</p>
       <h1>Journeys Through Europe</h1>
       <p class="hero-subtitle">
-        Football careers are rarely straight lines. This map follows player movement across
-        <span>seven major European leagues</span> and turns every transfer into a route, a detour, or a turning point.
+        Football transfers are more than movement lines. This experience combines a live
+        <span>league transfer map</span>, cinematic player career playback, and a spending view that lets you jump straight into club-level all-time transfer networks.
       </p>
       <div class="hero-tags">
         <span>2009–2021</span>
         <span>7 leagues</span>
-        <span>25.5k mapped transfer events</span>
+        <span>25.5k mapped transfer events + spending explorer</span>
       </div>
     </div>
 
     <aside class="hero-note glass">
       <p class="mini-label">Read this view</p>
       <p id="storyline">
-        Start with a season to see the transfer network pulse. Then click a player to switch from league-wide flow to an individual career journey.
+        Use Transfer Filters and League Quick Picks to shape the map, then Play seasons for league pulse. For player stories, use Career Explorer and Play Career. In the spending panel, click a club to open its all-time transfer map (2009–2021).
       </p>
       <div class="hero-note-footer">
         <div>
           <span class="mini-label">Focus</span>
           <strong id="focus-mode-label">League pulse</strong>
         </div>
-        <button id="reset-player" class="ghost-button" type="button" hidden>Reset spotlight</button>
       </div>
     </aside>
   </header>
@@ -50,26 +49,8 @@
       <div class="glass control-card">
         <div class="card-header">
           <div>
-            <p class="mini-label">Spotlight a player</p>
-            <h2>Career explorer</h2>
-          </div>
-        </div>
-
-        <label class="field-label" for="player-search">Search player</label>
-        <input id="player-search" class="text-input" type="text" placeholder="Try Sam Johnstone, Patrick Bamford, Ryan Inniss..." list="player-suggestions" autocomplete="off" />
-        <datalist id="player-suggestions"></datalist>
-
-        <div class="featured-wrap">
-          <p class="mini-label">Quick picks</p>
-          <div id="featured-players" class="chip-grid"></div>
-        </div>
-      </div>
-
-      <div class="glass control-card">
-        <div class="card-header">
-          <div>
-            <p class="mini-label">Filter the map</p>
-            <h2>Controls</h2>
+            <p class="mini-label">Map configuration</p>
+            <h2>Transfer Filters</h2>
           </div>
           <button id="play-toggle" class="play-button" type="button" aria-pressed="false">Play seasons</button>
         </div>
@@ -86,17 +67,6 @@
           </div>
         </div>
 
-        <div class="control-grid">
-          <div>
-            <label class="field-label" for="league-select">League</label>
-            <select id="league-select" class="select-input"></select>
-          </div>
-          <div>
-            <label class="field-label" for="position-select">Position</label>
-            <select id="position-select" class="select-input"></select>
-          </div>
-        </div>
-
         <div class="toggle-group">
           <p class="field-label">Window</p>
           <div id="window-buttons" class="segmented"></div>
@@ -105,6 +75,55 @@
         <div class="toggle-group">
           <p class="field-label">Move type</p>
           <div id="move-type-buttons" class="segmented wrap"></div>
+        </div>
+
+        <div class="toggle-group">
+          <p class="field-label">Map settings</p>
+          <div class="settings-grid">
+            <label class="setting-toggle">
+              <input id="toggle-map" type="checkbox" checked />
+              <span>Map</span>
+            </label>
+            <label class="setting-toggle">
+              <input id="toggle-hotspots" type="checkbox" checked />
+              <span>Hotspots</span>
+            </label>
+            <label class="setting-toggle">
+              <input id="toggle-lines" type="checkbox" checked />
+              <span>Lines (cap 210)</span>
+            </label>
+            <label class="setting-toggle">
+              <input id="toggle-animation" type="checkbox" />
+              <span>Animation (cap 70)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass control-card">
+        <div class="card-header">
+          <div>
+            <p class="mini-label">Spotlight a player</p>
+            <h2>Career explorer</h2>
+          </div>
+          <button id="play-career" class="play-button" type="button" aria-pressed="false" disabled>Play Career</button>
+        </div>
+
+        <div class="career-scrubber-wrap">
+          <div class="career-scrubber-head">
+            <span class="mini-label">Career scrubber</span>
+            <strong id="career-scrubber-value">Move 0 / 0</strong>
+          </div>
+          <input id="career-scrubber" type="range" min="1" max="1" step="1" value="1" disabled />
+        </div>
+
+        <label class="field-label" for="player-search">Search player</label>
+        <input id="player-search" class="text-input" type="text" placeholder="Try Sam Johnstone, Patrick Bamford, Ryan Inniss..." list="player-suggestions" autocomplete="off" />
+        <datalist id="player-suggestions"></datalist>
+
+        <div class="featured-wrap">
+          <p class="mini-label">Quick picks</p>
+          <div id="featured-players" class="chip-grid"></div>
         </div>
       </div>
 
@@ -120,16 +139,6 @@
         <p id="filter-summary" class="summary-copy"></p>
       </div>
 
-      <div class="glass control-card">
-        <div class="card-header compact">
-          <div>
-            <p class="mini-label">Click a name to spotlight it</p>
-            <h2 id="list-title">Most mobile players</h2>
-          </div>
-        </div>
-
-        <div id="list-container" class="list-container"></div>
-      </div>
     </section>
 
     <section class="viz-column">
@@ -147,8 +156,22 @@
           </div>
         </div>
 
+        <div class="league-picks">
+          <div class="league-picks-head">
+            <p class="mini-label">League quick picks</p>
+            <button id="reset-player" class="ghost-button league-reset-button" type="button" hidden>Reset Spotlight to League Transfers</button>
+          </div>
+          <div id="league-pills" class="chip-grid league-chip-grid"></div>
+        </div>
+
         <div id="map-wrap" class="map-wrap">
+          <div class="zoom-controls" aria-label="Map zoom controls">
+            <button id="zoom-in" class="zoom-button" type="button" aria-label="Zoom in">+</button>
+            <button id="zoom-out" class="zoom-button" type="button" aria-label="Zoom out">−</button>
+            <button id="zoom-reset" class="zoom-button zoom-reset" type="button" aria-label="Reset map view">Reset</button>
+          </div>
           <svg id="map-svg" viewBox="0 0 1100 720" preserveAspectRatio="xMidYMid meet"></svg>
+          <div id="playback-caption" class="playback-caption" hidden></div>
           <div id="tooltip" class="tooltip" hidden></div>
         </div>
 
@@ -164,6 +187,22 @@
             </p>
           </div>
         </div>
+      </div>
+
+      <div class="glass spend-card">
+        <div class="spend-header">
+          <div>
+            <p class="mini-label">League spending view</p>
+            <h2>How Much Each League Spends</h2>
+          </div>
+          <p id="league-spend-note" class="spend-note"></p>
+        </div>
+        <div id="league-spending-chart" class="league-spending-chart"></div>
+        <div class="spend-detail-head">
+          <p class="mini-label">Club detail</p>
+          <strong id="league-spending-focus">Top spenders</strong>
+        </div>
+        <div id="league-spending-top10" class="league-spending-top10"></div>
       </div>
     </section>
   </main>

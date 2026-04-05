@@ -34,15 +34,22 @@ const CLUB_COORD_OVERRIDES = {
 
 const state = {
   season: 2016,
-  league: "ALL",
-  position: "ALL",
-  window: "ALL",
-  moveType: "ALL",
+  leagues: new Set(["GB1", "ES1", "L1", "FR1"]),
+  windows: new Set(["s", "w"]),
+  moveTypes: new Set(["transfer", "loan", "free", "loan_end"]),
+  showMap: true,
+  showHotspots: true,
+  showLines: true,
+  animateOverview: false,
   selectedPlayerId: null,
   playing: false,
+  playingMode: null,
+  playbackPaused: false,
   playbackIndex: null,
   playToken: 0,
-  overviewTimer: null
+  overviewTimer: null,
+  spendingLeagueFocus: null,
+  selectedClubName: null
 };
 
 const els = {
@@ -52,14 +59,18 @@ const els = {
   seasonSlider: document.getElementById("season-slider"),
   seasonValue: document.getElementById("season-value"),
   playToggle: document.getElementById("play-toggle"),
-  leagueSelect: document.getElementById("league-select"),
-  positionSelect: document.getElementById("position-select"),
+  playCareer: document.getElementById("play-career"),
+  careerScrubber: document.getElementById("career-scrubber"),
+  careerScrubberValue: document.getElementById("career-scrubber-value"),
+  leaguePills: document.getElementById("league-pills"),
   windowButtons: document.getElementById("window-buttons"),
   moveTypeButtons: document.getElementById("move-type-buttons"),
+  toggleMap: document.getElementById("toggle-map"),
+  toggleHotspots: document.getElementById("toggle-hotspots"),
+  toggleLines: document.getElementById("toggle-lines"),
+  toggleAnimation: document.getElementById("toggle-animation"),
   statsGrid: document.getElementById("stats-grid"),
   filterSummary: document.getElementById("filter-summary"),
-  listContainer: document.getElementById("list-container"),
-  listTitle: document.getElementById("list-title"),
   mapTitle: document.getElementById("map-title"),
   mapInsight: document.getElementById("map-insight"),
   storyline: document.getElementById("storyline"),
@@ -67,11 +78,16 @@ const els = {
   resetPlayer: document.getElementById("reset-player"),
   tooltip: document.getElementById("tooltip"),
   mapWrap: document.getElementById("map-wrap"),
+  playbackCaption: document.getElementById("playback-caption"),
   zoomIn: document.getElementById("zoom-in"),
   zoomOut: document.getElementById("zoom-out"),
   zoomReset: document.getElementById("zoom-reset"),
   playbackTimelineOverlay: document.getElementById("playback-timeline-overlay"),
-  timelineDock: document.getElementById("timeline-dock")
+  timelineDock: document.getElementById("timeline-dock"),
+  leagueSpendingChart: document.getElementById("league-spending-chart"),
+  leagueSpendingTop10: document.getElementById("league-spending-top10"),
+  leagueSpendingFocus: document.getElementById("league-spending-focus"),
+  leagueSpendNote: document.getElementById("league-spend-note")
 };
 
 const svg = d3.select("#map-svg");
@@ -102,6 +118,7 @@ let countries = [];
 let searchablePlayers = [];
 let suggestionResults = [];
 let currentZoomK = 1;
+let captionHideTimer = null;
 
 
 function ensureDomScaffold() {
@@ -350,35 +367,19 @@ function initControls() {
   els.seasonSlider.value = state.season;
   els.seasonValue.textContent = state.season;
 
-  const leagueOptions = ["ALL", ...Array.from(new Set(data.map(d => d.league))).sort((a, b) => (LEAGUE_LABELS[a] || a).localeCompare(LEAGUE_LABELS[b] || b))];
-  els.leagueSelect.innerHTML = leagueOptions
-    .map(value => `<option value="${value}">${value === "ALL" ? "All leagues" : LEAGUE_LABELS[value] || value}</option>`)
-    .join("");
-
-  const topPositions = Array.from(
-    d3.rollups(data, values => values.length, d => d.player_pos)
-      .sort((a, b) => d3.descending(a[1], b[1]))
-      .slice(0, 10),
-    d => d[0]
-  );
-
-  els.positionSelect.innerHTML = ["ALL", ...topPositions]
-    .map(value => `<option value="${value}">${value === "ALL" ? "All positions" : value}</option>`)
-    .join("");
+  renderLeaguePills();
 
   buildSegmentedButtons(els.windowButtons, [
-    {key: "ALL", label: "All"},
     {key: "s", label: "Summer"},
     {key: "w", label: "Winter"}
-  ], "window");
+  ], "windows");
 
   buildSegmentedButtons(els.moveTypeButtons, [
-    {key: "ALL", label: "All"},
     {key: "transfer", label: "Transfer"},
     {key: "loan", label: "Loan"},
     {key: "free", label: "Free"},
     {key: "loan_end", label: "Loan end"}
-  ], "moveType");
+  ], "moveTypes");
 
   renderFeaturedPlayers();
   initSearch();
@@ -397,28 +398,81 @@ function initControls() {
       return;
     }
 
-    if (state.selectedPlayerId) {
-      await startPlayerPlayback();
-    } else {
-      startOverviewPlayback();
+    startOverviewPlayback();
+  });
+
+  els.playCareer?.addEventListener("click", async () => {
+    if (!state.selectedPlayerId) return;
+    if (state.playing && state.playingMode === "career") {
+      stopPlayback({preserveCareerProgress: true, pausedCareer: true});
+      update();
+      return;
     }
+    if (els.mapTitle) {
+      const y = window.scrollY + els.mapTitle.getBoundingClientRect().top - 72;
+      window.scrollTo({top: Math.max(0, y), behavior: "smooth"});
+    }
+    // Resume from current playback index when paused or scrubbed; restart only when no position exists.
+    const shouldRestart = state.playbackIndex == null;
+    await startPlayerPlayback({restart: shouldRestart});
   });
 
-  els.leagueSelect.addEventListener("change", event => {
-    stopPlayback();
-    state.league = event.target.value;
-    update();
-  });
+  if (els.toggleMap) {
+    els.toggleMap.checked = state.showMap;
+    els.toggleMap.addEventListener("change", () => {
+      state.showMap = !!els.toggleMap.checked;
+      update();
+    });
+  }
+  if (els.toggleHotspots) {
+    els.toggleHotspots.checked = state.showHotspots;
+    els.toggleHotspots.addEventListener("change", () => {
+      state.showHotspots = !!els.toggleHotspots.checked;
+      update();
+    });
+  }
+  if (els.toggleLines) {
+    els.toggleLines.checked = state.showLines;
+    els.toggleLines.addEventListener("change", () => {
+      state.showLines = !!els.toggleLines.checked;
+      update();
+    });
+  }
+  if (els.toggleAnimation) {
+    els.toggleAnimation.checked = state.animateOverview;
+    els.toggleAnimation.addEventListener("change", () => {
+      state.animateOverview = !!els.toggleAnimation.checked;
+      update();
+    });
+  }
 
-  els.positionSelect.addEventListener("change", event => {
-    stopPlayback();
-    state.position = event.target.value;
+  els.careerScrubber?.addEventListener("input", () => {
+    if (!state.selectedPlayerId) return;
+    const rows = playerJourneyRows(state.selectedPlayerId);
+    if (!rows.length) return;
+    stopPlayback({preserveCareerProgress: true});
+    const raw = +els.careerScrubber.value;
+    const idx = clamp(raw - 1, 0, rows.length - 1);
+    state.playbackIndex = idx;
+    state.season = rows[idx].season;
+    els.seasonSlider.value = state.season;
+    els.seasonValue.textContent = state.season;
     update();
   });
 
   els.resetPlayer.addEventListener("click", () => {
     stopPlayback();
     state.selectedPlayerId = null;
+    state.selectedClubName = null;
+    state.leagues = new Set(["GB1", "ES1", "L1", "FR1"]);
+    state.showMap = true;
+    state.showHotspots = true;
+    state.showLines = true;
+    state.animateOverview = false;
+    if (els.toggleMap) els.toggleMap.checked = true;
+    if (els.toggleHotspots) els.toggleHotspots.checked = true;
+    if (els.toggleLines) els.toggleLines.checked = true;
+    if (els.toggleAnimation) els.toggleAnimation.checked = false;
     state.playbackIndex = null;
     els.playerSearch.value = "";
     update();
@@ -428,24 +482,27 @@ function initControls() {
 }
 
 function initSearch() {
-  const suggestionBox = els.playerSuggestionBox;
-  if (!els.playerSearch || !suggestionBox) return;
+  if (!els.playerSearch) return;
 
   els.playerSearch.addEventListener("input", () => {
     const query = els.playerSearch.value.trim();
     if (!query) {
+      suggestionResults = [];
+      renderFeaturedPlayers();
       hideSuggestions();
       return;
     }
-    suggestionResults = searchPlayers(query).slice(0, 8);
-    renderSuggestions(query, suggestionResults);
+    suggestionResults = searchPlayers(query).slice(0, 10);
+    renderSearchResultChips(query, suggestionResults);
+    hideSuggestions();
   });
 
   els.playerSearch.addEventListener("focus", () => {
     const query = els.playerSearch.value.trim();
     if (query) {
-      suggestionResults = searchPlayers(query).slice(0, 8);
-      renderSuggestions(query, suggestionResults);
+      suggestionResults = searchPlayers(query).slice(0, 10);
+      renderSearchResultChips(query, suggestionResults);
+      hideSuggestions();
     }
   });
 
@@ -453,8 +510,15 @@ function initSearch() {
     if (event.key === "Enter") {
       event.preventDefault();
       const query = els.playerSearch.value.trim();
-      const choice = suggestionResults[0] || searchPlayers(query)[0];
-      if (choice) {
+      const exact = findExactPlayerMatch(query);
+      if (exact) {
+        selectPlayer(exact.player_id);
+        return;
+      }
+
+      // Only auto-pick when we have a strong visible candidate.
+      const choice = suggestionResults[0];
+      if (choice && normalizeSearchText(query).length >= 2) {
         selectPlayer(choice.player_id);
       } else {
         hideSuggestions();
@@ -464,16 +528,6 @@ function initSearch() {
     }
   });
 
-  els.playerSearch.addEventListener("blur", () => {
-    window.setTimeout(hideSuggestions, 120);
-  });
-
-  suggestionBox.addEventListener("mousedown", (event) => {
-    const item = event.target.closest("button[data-player-id]");
-    if (!item) return;
-    event.preventDefault();
-    selectPlayer(+item.dataset.playerId);
-  });
 }
 
 function renderFeaturedPlayers() {
@@ -494,7 +548,23 @@ function renderFeaturedPlayers() {
     picks = searchablePlayers.slice(0, 8);
   }
 
-  els.featuredPlayers.innerHTML = picks.map(player => `
+  renderPlayerChips(picks);
+}
+
+function renderSearchResultChips(query, matches) {
+  if (!els.featuredPlayers) return;
+  if (!matches.length) {
+    els.featuredPlayers.innerHTML = `
+      <div class="suggestion-empty">No players found for "${escapeHtml(query)}".</div>
+    `;
+    return;
+  }
+  renderPlayerChips(matches.slice(0, 10));
+}
+
+function renderPlayerChips(players) {
+  if (!els.featuredPlayers) return;
+  els.featuredPlayers.innerHTML = players.map(player => `
     <button class="feature-chip" type="button" data-player-id="${player.player_id}">
       <span>${player.player_name}</span>
       <small>${player.player_nation} · ${player.player_pos}</small>
@@ -506,10 +576,40 @@ function renderFeaturedPlayers() {
   });
 }
 
+function renderLeaguePills() {
+  if (!els.leaguePills) return;
+
+  const picks = ["GB1", ...Object.keys(LEAGUE_LABELS).filter(code => code !== "GB1")];
+  els.leaguePills.innerHTML = picks.map(code => `
+    <button class="feature-chip league-chip" type="button" data-league="${code}">
+      <span>${LEAGUE_LABELS[code] || code}</span>
+    </button>
+  `).join("");
+
+  els.leaguePills.querySelectorAll("button").forEach(button => {
+    button.addEventListener("click", () => {
+      stopPlayback();
+      toggleLeague(button.dataset.league);
+      update();
+    });
+  });
+}
+
+function toggleLeague(leagueCode) {
+  if (state.leagues.has(leagueCode)) {
+    if (state.leagues.size > 1) {
+      state.leagues.delete(leagueCode);
+    }
+  } else {
+    state.leagues.add(leagueCode);
+  }
+}
+
 
 function searchPlayers(query) {
   const q = normalizeSearchText(query);
   if (!q) return [];
+  const tokens = q.split(" ").filter(Boolean);
 
   return searchablePlayers
     .map(player => {
@@ -517,10 +617,14 @@ function searchPlayers(query) {
       const starts = name.startsWith(q);
       const includes = name.includes(q);
       const lastWordStarts = name.split(" ").some(part => part.startsWith(q));
+      const tokenMatches = tokens.filter(token => name.includes(token)).length;
+      const allTokensMatch = tokens.length > 1 && tokenMatches === tokens.length;
       const score =
         (starts ? 100 : 0) +
         (lastWordStarts ? 70 : 0) +
         (includes ? 40 : 0) +
+        (allTokensMatch ? 65 : 0) +
+        tokenMatches * 18 +
         famousBoost(player.player_name) * 8 +
         Math.min(player.journey_moves, 10);
       return {player, score};
@@ -530,27 +634,10 @@ function searchPlayers(query) {
     .map(d => d.player);
 }
 
-function renderSuggestions(query, matches) {
-  if (!els.playerSuggestionBox) return;
+function findExactPlayerMatch(query) {
   const q = normalizeSearchText(query);
-  if (!q) {
-    hideSuggestions();
-    return;
-  }
-
-  if (!matches.length) {
-    els.playerSuggestionBox.innerHTML = `<div class="suggestion-empty">No player found in this dataset for “${escapeHtml(query)}”.</div>`;
-    els.playerSuggestionBox.hidden = false;
-    return;
-  }
-
-  els.playerSuggestionBox.innerHTML = matches.map(player => `
-    <button class="suggestion-item" type="button" data-player-id="${player.player_id}">
-      <strong>${player.player_name}</strong>
-      <span>${player.player_nation} · ${player.player_pos} · ${player.journey_moves} mapped move${player.journey_moves === 1 ? "" : "s"}</span>
-    </button>
-  `).join("");
-  els.playerSuggestionBox.hidden = false;
+  if (!q) return null;
+  return searchablePlayers.find(player => normalizeSearchText(player.player_name) === q) || null;
 }
 
 function hideSuggestions() {
@@ -561,16 +648,21 @@ function hideSuggestions() {
 function selectPlayer(playerId) {
   stopPlayback();
   state.selectedPlayerId = playerId;
+  state.selectedClubName = null;
+  state.leagues = new Set(Object.keys(LEAGUE_LABELS));
   state.playbackIndex = null;
+  state.season = +els.seasonSlider.max;
   const player = searchablePlayers.find(d => d.player_id === playerId);
   els.playerSearch.value = player?.player_name || "";
+  els.seasonSlider.value = state.season;
+  els.seasonValue.textContent = state.season;
   hideSuggestions();
   update();
 }
 
 function buildSegmentedButtons(container, buttons, stateKey) {
   container.innerHTML = buttons.map(button => `
-    <button type="button" data-key="${button.key}" data-state-key="${stateKey}" ${button.key !== "ALL" ? `data-type="${button.key}"` : ""}>
+    <button type="button" data-key="${button.key}" data-state-key="${stateKey}" data-type="${button.key}">
       ${button.label}
     </button>
   `).join("");
@@ -578,27 +670,51 @@ function buildSegmentedButtons(container, buttons, stateKey) {
   container.querySelectorAll("button").forEach(button => {
     button.addEventListener("click", () => {
       stopPlayback();
-      state[stateKey] = button.dataset.key;
+      toggleSetValue(state[stateKey], button.dataset.key);
       update();
     });
   });
 }
 
-function stopPlayback() {
+function toggleSetValue(set, value) {
+  if (!(set instanceof Set)) return;
+  if (set.has(value)) {
+    if (set.size > 1) {
+      set.delete(value);
+    }
+  } else {
+    set.add(value);
+  }
+}
+
+function stopPlayback(options = {}) {
+  const {preserveCareerProgress = false, pausedCareer = false} = options;
   state.playToken += 1;
   state.playing = false;
-  state.playbackIndex = null;
+  state.playingMode = null;
+  if (preserveCareerProgress) {
+    state.playbackPaused = pausedCareer;
+  } else {
+    state.playbackPaused = false;
+    state.playbackIndex = null;
+  }
   els.playToggle.classList.remove("is-active");
   els.playToggle.textContent = "Play seasons";
+  els.playCareer?.classList.remove("is-active");
+  if (els.playCareer) els.playCareer.textContent = pausedCareer ? "Resume Career" : "Play Career";
   if (state.overviewTimer) {
     window.clearInterval(state.overviewTimer);
     state.overviewTimer = null;
   }
+  hidePlaybackCaption();
 }
 
 function startOverviewPlayback() {
   stopPlayback();
+  state.selectedPlayerId = null;
+  state.selectedClubName = null;
   state.playing = true;
+  state.playingMode = "overview";
   els.playToggle.classList.add("is-active");
   els.playToggle.textContent = "Pause";
   state.overviewTimer = window.setInterval(() => {
@@ -611,14 +727,17 @@ function startOverviewPlayback() {
   }, 1300);
 }
 
-async function startPlayerPlayback() {
+async function startPlayerPlayback(options = {}) {
+  const {restart = true} = options;
   const player = searchablePlayers.find(d => d.player_id === state.selectedPlayerId);
   if (!player) return;
-
-  stopPlayback();
+  const startIndex = restart ? 0 : (state.playbackIndex != null ? clamp(state.playbackIndex, 0, Number.MAX_SAFE_INTEGER) : 0);
+  stopPlayback({preserveCareerProgress: true});
   state.playing = true;
-  els.playToggle.classList.add("is-active");
-  els.playToggle.textContent = "Pause";
+  state.playingMode = "career";
+  state.playbackPaused = false;
+  els.playCareer?.classList.add("is-active");
+  if (els.playCareer) els.playCareer.textContent = "Pause";
   const token = ++state.playToken;
 
   const rows = playerJourneyRows(player.player_id);
@@ -628,7 +747,8 @@ async function startPlayerPlayback() {
     return;
   }
 
-  for (let i = 0; i < rows.length; i += 1) {
+  const boundedStart = clamp(startIndex, 0, Math.max(0, rows.length - 1));
+  for (let i = boundedStart; i < rows.length; i += 1) {
     if (token !== state.playToken) return;
 
     state.playbackIndex = i;
@@ -639,7 +759,8 @@ async function startPlayerPlayback() {
     await sleep(80);
     if (token !== state.playToken) return;
     await animateCurrentTransfer(rows[i], token, {
-      isFirstMove: i === 0,
+      isPlaybackStart: i === boundedStart,
+      isCareerFirst: i === 0,
       isLastMove: i === rows.length - 1
     });
     if (token !== state.playToken) return;
@@ -648,9 +769,11 @@ async function startPlayerPlayback() {
 
   if (token !== state.playToken) return;
   state.playing = false;
+  state.playingMode = null;
+  state.playbackPaused = false;
   state.playbackIndex = null;
-  els.playToggle.classList.remove("is-active");
-  els.playToggle.textContent = "Play seasons";
+  els.playCareer?.classList.remove("is-active");
+  if (els.playCareer) els.playCareer.textContent = "Play Career";
   update();
   await sleep(180);
   if (token !== state.playToken) return;
@@ -658,12 +781,18 @@ async function startPlayerPlayback() {
 }
 
 async function animateCurrentTransfer(move, token, options = {}) {
-  const {isFirstMove = false, isLastMove = false} = options;
+  const {isPlaybackStart = false, isCareerFirst = false, isLastMove = false} = options;
 
-  if (isFirstMove) {
-    await zoomToLocation(move.from_longitude, move.from_latitude, 10.7, 640);
-  } else {
-    await zoomToLocation(move.from_longitude, move.from_latitude, 11.0, 280);
+  if (isPlaybackStart) {
+    await zoomToLocation(move.from_longitude, move.from_latitude, 19.2, 560);
+  }
+  if (token !== state.playToken) return;
+
+  if (isCareerFirst) {
+    showPlaybackCaption(move, "origin");
+    await sleep(2300);
+    hidePlaybackCaption();
+    await sleep(760);
   }
   if (token !== state.playToken) return;
 
@@ -690,14 +819,15 @@ async function animateCurrentTransfer(move, token, options = {}) {
       ? pulse.transition().duration(220).attr("r", 8.2 / currentZoomK).transition().duration(450).attr("r", 5.6 / currentZoomK).end().catch(() => {})
       : Promise.resolve();
 
-    const zoomPromise = zoomToLocation(move.to_longitude, move.to_latitude, isLastMove ? 10.9 : 11.25, 1150);
+    const zoomPromise = zoomToLocation(move.to_longitude, move.to_latitude, isLastMove ? 18.6 : 20.4, 1150);
     await Promise.all([linePromise, zoomPromise, pulsePromise]);
   }
 
   if (token !== state.playToken) return;
-  await sleep(90);
-  if (token !== state.playToken) return;
-  await zoomToLocation(move.to_longitude, move.to_latitude, isLastMove ? 10.9 : 11.35, 320);
+  showPlaybackCaption(move, "arrival");
+  await sleep(isLastMove ? 2800 : 2200);
+  hidePlaybackCaption();
+  await sleep(620);
 }
 
 function sleep(ms) {
@@ -708,40 +838,208 @@ function update() {
   syncButtonStates();
 
   const selectedPlayer = state.selectedPlayerId ? searchablePlayers.find(d => d.player_id === state.selectedPlayerId) : null;
+  const selectedClub = selectedPlayer ? null : state.selectedClubName;
   const seasonRows = filteredSeasonRows();
-  const displayRows = selectedPlayer ? playerJourneyRows(selectedPlayer.player_id) : seasonRows;
+  const clubRows = selectedClub ? clubAllTimeRows(selectedClub) : [];
+  const displayRows = selectedPlayer
+    ? playerJourneyRows(selectedPlayer.player_id)
+    : selectedClub
+      ? clubRows
+      : seasonRows;
   const visibleRows = selectedPlayer
     ? (state.playbackIndex != null ? displayRows.slice(0, state.playbackIndex + 1) : displayRows.filter(d => d.season <= state.season))
     : displayRows;
-  const drawRows = selectedPlayer ? visibleRows : limitForMap(visibleRows);
+  const drawRows = selectedPlayer || selectedClub ? visibleRows : limitForMap(visibleRows);
+  const showCareerUI = !!selectedPlayer && (state.playingMode === "career" || state.playbackPaused);
+  if (!showCareerUI) {
+    hardHidePlaybackCaption();
+  }
 
-  updateHeader(selectedPlayer, seasonRows, visibleRows);
-  updateStats(selectedPlayer, seasonRows, visibleRows);
-  updateList(selectedPlayer, visibleRows, seasonRows);
+  updateHeader(selectedPlayer, selectedClub, seasonRows, visibleRows);
+  updateStats(selectedPlayer, selectedClub, seasonRows, visibleRows);
+  updateLeagueSpendingViz();
+  updateCareerScrubber(selectedPlayer, displayRows, visibleRows);
   updatePlaybackTimeline(selectedPlayer, visibleRows, displayRows);
   drawMap(drawRows, selectedPlayer, visibleRows.length);
 }
 
+function updateLeagueSpendingViz() {
+  if (!els.leagueSpendingChart || !els.leagueSpendingTop10) return;
+
+  const feeRows = data.filter(d => (
+    d.season === state.season &&
+    state.windows.has(d.window) &&
+    state.moveTypes.has(d.move_type) &&
+    Number.isFinite(d.transfer_fee_amnt) &&
+    d.transfer_fee_amnt > 0
+  ));
+
+  const grouped = new Map(d3.rollups(
+    feeRows,
+    values => ({
+      totalSpend: d3.sum(values, d => d.transfer_fee_amnt || 0),
+      paidMoves: values.length
+    }),
+    d => d.league
+  ));
+
+  const leagueRows = Object.keys(LEAGUE_LABELS).map(code => {
+    const summary = grouped.get(code) || {totalSpend: 0, paidMoves: 0};
+    return {
+      league: code,
+      leagueLabel: LEAGUE_LABELS[code] || code,
+      totalSpend: summary.totalSpend,
+      paidMoves: summary.paidMoves
+    };
+  }).sort((a, b) => d3.descending(a.totalSpend, b.totalSpend));
+
+  if (!leagueRows.length) {
+    els.leagueSpendingChart.innerHTML = `<div class="empty-state-inline">No league spending rows available.</div>`;
+    els.leagueSpendingTop10.innerHTML = "";
+    return;
+  }
+
+  const hasFocus = leagueRows.some(d => d.league === state.spendingLeagueFocus);
+  if (!hasFocus) {
+    const firstWithSpend = leagueRows.find(d => d.totalSpend > 0);
+    state.spendingLeagueFocus = (firstWithSpend || leagueRows[0]).league;
+  }
+
+  const maxSpend = d3.max(leagueRows, d => d.totalSpend) || 1;
+  els.leagueSpendingChart.innerHTML = leagueRows.map(d => {
+    const pct = Math.max(4, (d.totalSpend / maxSpend) * 100);
+    const active = d.league === state.spendingLeagueFocus;
+    return `
+      <button class="league-spend-row ${active ? "is-active" : ""}" type="button" data-league="${d.league}">
+        <span class="league-spend-name">${d.leagueLabel}</span>
+        <span class="league-spend-bar-wrap">
+          <span class="league-spend-bar" style="width:${pct}%"></span>
+        </span>
+        <span class="league-spend-value">${formatMoneyCompact(d.totalSpend)}</span>
+      </button>
+    `;
+  }).join("");
+
+  els.leagueSpendingChart.querySelectorAll(".league-spend-row").forEach(button => {
+    button.addEventListener("click", () => {
+      state.spendingLeagueFocus = button.dataset.league;
+      updateLeagueSpendingViz();
+    });
+  });
+
+  const focusLeague = state.spendingLeagueFocus;
+  const focusLabel = LEAGUE_LABELS[focusLeague] || focusLeague;
+  const topClubs = d3.rollups(
+    feeRows.filter(d => d.league === focusLeague),
+    values => ({
+      spend: d3.sum(values, d => d.transfer_fee_amnt || 0),
+      moves: values.length
+    }),
+    d => d.to_team_name || "Unknown club"
+  )
+    .map(([club, summary]) => ({club, ...summary}))
+    .sort((a, b) => d3.descending(a.spend, b.spend))
+    .slice(0, 10);
+
+  if (els.leagueSpendNote) {
+    const disclosedTotal = d3.sum(leagueRows, d => d.totalSpend);
+    els.leagueSpendNote.textContent = `${state.season} · Disclosed fees ${formatMoneyCompact(disclosedTotal)}`;
+  }
+  if (els.leagueSpendingFocus) {
+    els.leagueSpendingFocus.textContent = `Top 10 spenders · ${focusLabel} (${state.season})`;
+  }
+
+  if (!topClubs.length) {
+    els.leagueSpendingTop10.innerHTML = `<div class="empty-state-inline">No disclosed transfer fees for ${focusLabel} in ${state.season} with current filters.</div>`;
+    return;
+  }
+
+  els.leagueSpendingTop10.innerHTML = topClubs.map((d, i) => `
+    <div class="spend-club-row">
+      <span class="spend-rank">${i + 1}</span>
+      <span class="spend-club-name">${escapeHtml(d.club)}</span>
+      <span class="spend-club-meta">${formatNumber(d.moves)} move${d.moves === 1 ? "" : "s"}</span>
+      <span class="spend-club-value">${formatMoneyCompact(d.spend)}</span>
+      <button class="spend-club-action" type="button" data-club-index="${i}">View all-time transfers</button>
+    </div>
+  `).join("");
+
+  els.leagueSpendingTop10.querySelectorAll(".spend-club-action").forEach(button => {
+    button.addEventListener("click", () => {
+      const idx = +button.dataset.clubIndex;
+      const club = topClubs[idx]?.club;
+      if (!club) return;
+      focusClubAllTime(club);
+    });
+  });
+}
+
+function focusClubAllTime(clubName) {
+  stopPlayback();
+  state.selectedPlayerId = null;
+  state.leagues = new Set(Object.keys(LEAGUE_LABELS));
+  state.windows = new Set(["s", "w"]);
+  state.moveTypes = new Set(["transfer", "loan", "free", "loan_end"]);
+  state.animateOverview = true;
+  if (els.toggleAnimation) els.toggleAnimation.checked = true;
+  state.playbackIndex = null;
+  state.playbackPaused = false;
+  state.selectedClubName = clubName;
+  els.seasonSlider.value = state.season;
+  els.seasonValue.textContent = state.season;
+  update();
+  if (els.mapTitle) {
+    const y = window.scrollY + els.mapTitle.getBoundingClientRect().top - 96;
+    window.scrollTo({top: Math.max(0, y), behavior: "smooth"});
+  }
+}
+
 function syncButtonStates() {
   els.windowButtons.querySelectorAll("button").forEach(button => {
-    button.classList.toggle("is-active", button.dataset.key === state.window);
+    button.classList.toggle("is-active", state.windows.has(button.dataset.key));
   });
   els.moveTypeButtons.querySelectorAll("button").forEach(button => {
-    button.classList.toggle("is-active", button.dataset.key === state.moveType);
+    button.classList.toggle("is-active", state.moveTypes.has(button.dataset.key));
   });
   els.featuredPlayers.querySelectorAll("button").forEach(button => {
     button.classList.toggle("is-active", +button.dataset.playerId === state.selectedPlayerId);
   });
-  els.resetPlayer.hidden = !state.selectedPlayerId;
+  els.leaguePills?.querySelectorAll("button").forEach(button => {
+    button.classList.toggle("is-active", state.leagues.has(button.dataset.league));
+  });
+  if (els.playCareer) {
+    els.playCareer.disabled = !state.selectedPlayerId;
+  }
+  if (els.careerScrubber) {
+    els.careerScrubber.disabled = !state.selectedPlayerId;
+  }
+  els.resetPlayer.hidden = !(state.selectedPlayerId || state.selectedClubName);
+}
+
+function updateCareerScrubber(selectedPlayer, allRows, visibleRows) {
+  if (!els.careerScrubber || !els.careerScrubberValue) return;
+  if (!selectedPlayer || !allRows.length) {
+    els.careerScrubber.min = "1";
+    els.careerScrubber.max = "1";
+    els.careerScrubber.value = "1";
+    els.careerScrubberValue.textContent = "Move 0 / 0";
+    return;
+  }
+
+  const total = allRows.length;
+  const current = state.playbackIndex != null ? state.playbackIndex + 1 : Math.max(1, Math.min(total, visibleRows.length));
+  els.careerScrubber.min = "1";
+  els.careerScrubber.max = String(total);
+  els.careerScrubber.value = String(clamp(current, 1, total));
+  els.careerScrubberValue.textContent = `Move ${clamp(current, 1, total)} / ${total}`;
 }
 
 function filteredSeasonRows() {
   return data.filter(d => (
     d.season === state.season &&
-    (state.league === "ALL" || d.league === state.league) &&
-    (state.position === "ALL" || d.player_pos === state.position) &&
-    (state.window === "ALL" || d.window === state.window) &&
-    (state.moveType === "ALL" || d.move_type === state.moveType)
+    state.leagues.has(d.league) &&
+    state.windows.has(d.window) &&
+    state.moveTypes.has(d.move_type)
   ));
 }
 
@@ -749,10 +1047,9 @@ function playerJourneyRows(playerId) {
   return data
     .filter(d => (
       d.player_id === playerId &&
-      (state.league === "ALL" || d.league === state.league) &&
-      (state.position === "ALL" || d.player_pos === state.position) &&
-      (state.window === "ALL" || d.window === state.window) &&
-      (state.moveType === "ALL" || d.move_type === state.moveType)
+      state.leagues.has(d.league) &&
+      state.windows.has(d.window) &&
+      state.moveTypes.has(d.move_type)
     ))
     .sort((a, b) =>
       d3.ascending(a.season, b.season) ||
@@ -761,20 +1058,51 @@ function playerJourneyRows(playerId) {
     );
 }
 
+function clubAllTimeRows(clubName) {
+  return data
+    .filter(d => (
+      (d.from_team_name === clubName || d.to_team_name === clubName) &&
+      state.leagues.has(d.league) &&
+      state.windows.has(d.window) &&
+      state.moveTypes.has(d.move_type)
+    ))
+    .sort((a, b) =>
+      d3.ascending(a.season, b.season) ||
+      d3.ascending(windowOrder(a.window), windowOrder(b.window)) ||
+      d3.ascending(a.transfer_id || 0, b.transfer_id || 0)
+    );
+}
+
 function limitForMap(rows) {
-  if (rows.length <= 110) return rows;
-  return [...rows]
+  const lineCap = 210;
+  let limited = rows;
+
+  if (limited.length > lineCap) {
+    limited = [...limited]
+      .sort((a, b) =>
+        d3.descending(a.transfer_fee_amnt || 0, b.transfer_fee_amnt || 0) ||
+        d3.descending(a.market_val_amnt || 0, b.market_val_amnt || 0)
+      )
+      .slice(0, lineCap);
+  }
+
+  if (!state.animateOverview) return limited;
+  const animationCap = 70;
+  if (limited.length <= animationCap) return limited;
+  return [...limited]
     .sort((a, b) =>
       d3.descending(a.transfer_fee_amnt || 0, b.transfer_fee_amnt || 0) ||
       d3.descending(a.market_val_amnt || 0, b.market_val_amnt || 0)
     )
-    .slice(0, 110);
+    .slice(0, animationCap);
 }
 
-function updateHeader(selectedPlayer, seasonRows, visibleRows) {
-  const focus = selectedPlayer ? "Player spotlight" : "League pulse";
+function updateHeader(selectedPlayer, selectedClub, seasonRows, visibleRows) {
+  const focus = selectedPlayer ? "Player spotlight" : (selectedClub ? "Club all-time" : "League pulse");
   const title = selectedPlayer
     ? `${selectedPlayer.player_name} · career through ${state.season}`
+    : selectedClub
+      ? `${selectedClub} · all-time transfers (2009–2021)`
     : `${focus} · ${state.season}`;
   els.mapTitle.textContent = title;
   els.focusModeLabel.textContent = focus;
@@ -786,14 +1114,20 @@ function updateHeader(selectedPlayer, seasonRows, visibleRows) {
     els.mapInsight.textContent = visibleRows.length
       ? `${selectedPlayer.player_name} has ${visibleRows.length} visible move${visibleRows.length === 1 ? "" : "s"} so far, currently reaching ${reaches}.`
       : `Move the slider or press play to reveal ${selectedPlayer.player_name}'s path.`;
+  } else if (selectedClub) {
+    const countriesTouched = new Set(visibleRows.flatMap(d => [d.from_team_country, d.to_team_country]).filter(Boolean)).size;
+    const playersTouched = new Set(visibleRows.map(d => d.player_id)).size;
+    els.storyline.textContent = `${selectedClub} is now in all-time view. This map shows every mapped transfer involving the club from 2009 to 2021, including both arrivals and departures.`;
+    els.mapInsight.textContent = `${formatNumber(visibleRows.length)} mapped transfers involving ${selectedClub}, across ${formatNumber(playersTouched)} players and ${countriesTouched} countries.`;
   } else {
     const countriesTouched = new Set(seasonRows.flatMap(d => [d.from_team_country, d.to_team_country]).filter(Boolean)).size;
+    const leagueCount = state.leagues.size;
     els.storyline.textContent = `Start with the transfer market, then switch to a player story. In overview mode the map shows a thin route cloud; in player mode it becomes a narrated journey with numbered stops.`;
-    els.mapInsight.textContent = `${formatNumber(seasonRows.length)} matched moves satisfy the current filters, connecting ${countriesTouched} countries in this season.`;
+    els.mapInsight.textContent = `${formatNumber(seasonRows.length)} matched moves satisfy the current filters across ${leagueCount} selected league${leagueCount === 1 ? "" : "s"}, connecting ${countriesTouched} countries in this season.`;
   }
 }
 
-function updateStats(selectedPlayer, seasonRows, visibleRows) {
+function updateStats(selectedPlayer, selectedClub, seasonRows, visibleRows) {
   let stats = [];
   if (selectedPlayer) {
     const clubs = Array.from(new Set(visibleRows.flatMap(d => [d.from_team_name, d.to_team_name]).filter(Boolean)));
@@ -808,22 +1142,57 @@ function updateStats(selectedPlayer, seasonRows, visibleRows) {
     ];
 
     els.filterSummary.textContent = `${selectedPlayer.player_name} is listed as ${selectedPlayer.player_pos} for ${selectedPlayer.player_nation}. Hover a route to see its season, move type, and fee/value context.`;
+  } else if (selectedClub) {
+    const players = new Set(visibleRows.map(d => d.player_id)).size;
+    const countries = Array.from(new Set(visibleRows.flatMap(d => [d.from_team_country, d.to_team_country]).filter(Boolean)));
+    const clubs = Array.from(new Set(visibleRows.flatMap(d => [d.from_team_name, d.to_team_name]).filter(Boolean)));
+    const incoming = visibleRows.filter(d => d.to_team_name === selectedClub).length;
+    const outgoing = visibleRows.filter(d => d.from_team_name === selectedClub).length;
+    const disclosedFees = visibleRows.filter(d => d.transfer_fee_amnt).length;
+    const totalFees = d3.sum(visibleRows, d => d.transfer_fee_amnt || 0);
+
+    stats = [
+      {label: "All-time moves", value: formatNumber(visibleRows.length), sub: "Mapped transfers involving this club from 2009–2021"},
+      {label: "Incoming vs outgoing", value: `${formatNumber(incoming)} / ${formatNumber(outgoing)}`, sub: "Arrivals at club / departures from club"},
+      {label: "Players involved", value: formatNumber(players), sub: `${clubs.length} connected clubs across ${countries.length} countries`},
+      {label: "Disclosed fees", value: disclosedFees ? formatMoneyCompact(totalFees) : "Mostly undisclosed", sub: `${formatNumber(disclosedFees)} moves include a fee amount`}
+    ];
+
+    els.filterSummary.textContent = `${selectedClub} is in all-time spotlight mode. Press “Reset Spotlight to League Transfers” to return to season-based league pulse mode.`;
   } else {
     const countries = Array.from(new Set(seasonRows.flatMap(d => [d.from_team_country, d.to_team_country]).filter(Boolean)));
     const clubs = Array.from(new Set(seasonRows.flatMap(d => [d.from_team_name, d.to_team_name]).filter(Boolean)));
     const avgAge = d3.mean(seasonRows, d => d.player_age);
     const disclosedFees = seasonRows.filter(d => d.transfer_fee_amnt).length;
     const totalFees = d3.sum(seasonRows, d => d.transfer_fee_amnt || 0);
+    const animationCap = 70;
+    const lineCap = 210;
+    const mappedSub = state.animateOverview && seasonRows.length > animationCap
+      ? `Animation is on: top ${animationCap} routes drawn for smoother playback`
+      : seasonRows.length > lineCap
+        ? `Top ${lineCap} routes drawn for readability`
+        : "Every matched route is shown";
 
     stats = [
-      {label: "Mapped moves", value: formatNumber(seasonRows.length), sub: seasonRows.length > 110 ? "Top 110 routes drawn for readability" : "Every matched route is shown"},
+      {label: "Mapped moves", value: formatNumber(seasonRows.length), sub: mappedSub},
       {label: "Clubs touched", value: formatNumber(clubs.length), sub: `${countries.length} countries connected in this slice`},
-      {label: "Average age", value: avgAge ? `${avgAge.toFixed(1)} yrs` : "—", sub: state.position === "ALL" ? "Across all visible positions" : `Filtered to ${state.position}`},
+      {label: "Average age", value: avgAge ? `${avgAge.toFixed(1)} yrs` : "—", sub: "Across all visible positions"},
       {label: "Disclosed fees", value: disclosedFees ? formatMoneyCompact(totalFees) : "Mostly undisclosed", sub: `${formatNumber(disclosedFees)} routes list a fee amount`}
     ];
 
-    const windowLabel = state.window === "ALL" ? "both windows" : state.window === "s" ? "the summer window" : "the winter window";
-    els.filterSummary.textContent = `Right now you are looking at ${windowLabel} in ${state.season}${state.league === "ALL" ? "" : `, filtered to ${LEAGUE_LABELS[state.league]}`}. Use pan and zoom to inspect where long-distance routes leave the core seven-league market.`;
+    const windowLabel = state.windows.size === 2
+      ? "both windows"
+      : state.windows.has("s")
+        ? "the summer window"
+        : "the winter window";
+    const selectedLeagues = Array.from(state.leagues).map(code => LEAGUE_LABELS[code] || code);
+    const leagueSummary = selectedLeagues.length === Object.keys(LEAGUE_LABELS).length
+      ? "all tracked leagues"
+      : selectedLeagues.join(", ");
+    const moveSummary = state.moveTypes.size === 4
+      ? "all move types"
+      : Array.from(state.moveTypes).map(type => MOVE_TYPE_LABELS[type] || type).join(", ");
+    els.filterSummary.textContent = `Right now you are looking at ${windowLabel} in ${state.season}, filtered to ${leagueSummary} and ${moveSummary}. Use pan and zoom to inspect where long-distance routes leave the core seven-league market.`;
   }
 
   els.statsGrid.innerHTML = stats.map(stat => `
@@ -835,67 +1204,16 @@ function updateStats(selectedPlayer, seasonRows, visibleRows) {
   `).join("");
 }
 
-function updateList(selectedPlayer, visibleRows, seasonRows) {
-  if (selectedPlayer) {
-    els.listTitle.textContent = "Career timeline";
-    const rows = visibleRows.slice().sort((a, b) =>
-      d3.ascending(a.season, b.season) ||
-      d3.ascending(windowOrder(a.window), windowOrder(b.window)) ||
-      d3.ascending(a.career_move_no || 0, b.career_move_no || 0)
-    );
-
-    els.listContainer.innerHTML = rows.length
-      ? rows.map(d => `
-        <div class="list-row">
-          <div>
-            <h3>Move ${d.career_move_no || 0} · ${d.season} · ${d.window_label}</h3>
-            <p>${d.from_team_name} → ${d.to_team_name}</p>
-          </div>
-          <span class="list-pill ${d.move_type}">${MOVE_TYPE_LABELS[d.move_type] || d.move_type}</span>
-        </div>
-      `).join("")
-      : `<div class="list-row"><div><h3>No moves yet</h3><p>Move the season slider forward or press play to reveal this player's route.</p></div></div>`;
-  } else {
-    els.listTitle.textContent = "Story starters this season";
-    const leaders = d3.rollups(
-      seasonRows,
-      values => ({
-        count: values.length,
-        pos: values[0].player_pos,
-        lastNation: values[0].player_nation
-      }),
-      d => d.player_id,
-      d => d.player_name
-    )
-      .map(([player_id, [player_name, info]]) => ({player_id, player_name, ...info}))
-      .sort((a, b) => d3.descending(a.count, b.count) || famousBoost(b.player_name) - famousBoost(a.player_name))
-      .slice(0, 10);
-
-    els.listContainer.innerHTML = leaders.length
-      ? leaders.map(player => `
-        <button class="list-row" type="button" data-player-id="${player.player_id}">
-          <div>
-            <h3>${player.player_name}</h3>
-            <p>${player.lastNation} · ${player.pos}</p>
-          </div>
-          <span class="list-pill">${player.count} move${player.count === 1 ? "" : "s"}</span>
-        </button>
-      `).join("")
-      : `<div class="list-row"><div><h3>No routes match</h3><p>Try loosening the filters or choosing a different season.</p></div></div>`;
-
-    els.listContainer.querySelectorAll("button[data-player-id]").forEach(button => {
-      button.addEventListener("click", () => selectPlayer(+button.dataset.playerId));
-    });
-  }
-}
-
-
 function updatePlaybackTimeline(selectedPlayer, visibleRows, allRows) {
   if (!els.playbackTimelineOverlay || !els.timelineDock) return;
+  const showCareerTimeline = !!selectedPlayer;
 
-  if (!selectedPlayer || !allRows.length) {
+  if (!showCareerTimeline || !allRows.length) {
     els.playbackTimelineOverlay.hidden = true;
+    els.playbackTimelineOverlay.style.display = "none";
+    els.playbackTimelineOverlay.classList.remove("is-active");
     els.timelineDock.hidden = true;
+    els.timelineDock.style.display = "none";
     els.playbackTimelineOverlay.innerHTML = "";
     els.timelineDock.innerHTML = "";
     return;
@@ -909,8 +1227,8 @@ function updatePlaybackTimeline(selectedPlayer, visibleRows, allRows) {
 
   const visibleKeys = new Set(visibleRows.map(routeKey));
   const currentKey = state.playbackIndex != null && rows[state.playbackIndex] ? routeKey(rows[state.playbackIndex]) : null;
-  const revealed = rows.filter(d => visibleKeys.has(routeKey(d)));
-  const overlayRows = revealed.slice().reverse();
+  const isProgressiveTimeline = state.playingMode === "career" || state.playbackPaused || state.playbackIndex != null;
+  const overlayRows = (isProgressiveTimeline ? rows.filter(d => visibleKeys.has(routeKey(d))) : rows).slice().reverse();
 
   const itemHtml = d => `
     <div class="timeline-item ${visibleKeys.has(routeKey(d)) ? 'is-revealed' : ''} ${routeKey(d) === currentKey ? 'is-current' : ''} ${d.move_type}">
@@ -922,38 +1240,29 @@ function updatePlaybackTimeline(selectedPlayer, visibleRows, allRows) {
     </div>
   `;
 
+  els.playbackTimelineOverlay.hidden = false;
+  els.playbackTimelineOverlay.style.display = "grid";
+  els.playbackTimelineOverlay.classList.add("is-active");
+  els.playbackTimelineOverlay.innerHTML = `
+    <div class="timeline-overlay-header">
+      <span class="mini-label">Career timeline</span>
+      <strong>${selectedPlayer.player_name}</strong>
+    </div>
+    <div class="timeline-overlay-list">
+      ${overlayRows.map(itemHtml).join("")}
+    </div>
+  `;
   if (state.playing) {
-    els.playbackTimelineOverlay.hidden = false;
-    els.playbackTimelineOverlay.classList.add("is-active");
-    els.playbackTimelineOverlay.innerHTML = `
-      <div class="timeline-overlay-header">
-        <span class="mini-label">Career timeline</span>
-        <strong>${selectedPlayer.player_name}</strong>
-      </div>
-      <div class="timeline-overlay-list">
-        ${overlayRows.map(itemHtml).join("")}
-      </div>
-    `;
-    els.timelineDock.hidden = true;
-    els.timelineDock.innerHTML = "";
-  } else {
-    els.playbackTimelineOverlay.hidden = true;
-    els.playbackTimelineOverlay.classList.remove("is-active");
-    els.playbackTimelineOverlay.innerHTML = "";
-    els.timelineDock.hidden = false;
-    els.timelineDock.innerHTML = `
-      <div class="timeline-dock-header">
-        <span class="mini-label">Career timeline</span>
-        <strong>${selectedPlayer.player_name}</strong>
-      </div>
-      <div class="timeline-dock-row">
-        ${rows.map(itemHtml).join("")}
-      </div>
-    `;
+    const listEl = els.playbackTimelineOverlay.querySelector(".timeline-overlay-list");
+    if (listEl) listEl.scrollTop = 0;
   }
+  els.timelineDock.hidden = true;
+  els.timelineDock.style.display = "none";
+  els.timelineDock.innerHTML = "";
 }
 
 function drawMap(rows, selectedPlayer, totalVisibleRows) {
+  countryLayer.style("display", state.showMap ? null : "none");
   routeLayer.selectAll("*").remove();
   pointLayer.selectAll("*").remove();
   labelLayer.selectAll("*").remove();
@@ -1006,7 +1315,7 @@ function drawMap(rows, selectedPlayer, totalVisibleRows) {
         .attr("stroke-width", Math.max(0.9, widthValue * 1.08))
         .attr("class", `route-flow ${selectedPlayer ? 'is-spotlight-flow' : ''}`)
         .style("stroke", moveColor)
-        .style("filter", `drop-shadow(0 0 8px ${hexToRgba(moveColor, 0.24)})`)
+        .style("filter", selectedPlayer ? `drop-shadow(0 0 8px ${hexToRgba(moveColor, 0.24)})` : "none")
         .attr("opacity", d.isLatest && state.playing && selectedPlayer ? 0 : 0.75);
       g.select("path.route-hover")
         .attr("d", pathD)
@@ -1032,18 +1341,31 @@ function drawMap(rows, selectedPlayer, totalVisibleRows) {
       hideTooltip();
     });
 
+  routeLayer.style("display", state.showLines ? null : "none");
+
   groups.each(function(d) {
     const flow = d3.select(this).select("path.route-flow");
     const length = flow.node().getTotalLength();
-    flow
-      .attr("stroke-dasharray", `18 ${Math.max(90, length)}`)
-      .style("animation-duration", `${Math.max(4.2, Math.min(8, length / 70))}s`);
+    if (selectedPlayer || state.animateOverview) {
+      flow
+        .attr("stroke-dasharray", `18 ${Math.max(90, length)}`)
+        .style("animation-name", "subtleFlow")
+        .style("animation-duration", `${Math.max(4.2, Math.min(8, length / 70))}s`);
+    } else {
+      flow
+        .attr("stroke-dasharray", null)
+        .style("animation-name", "none")
+        .style("animation-duration", null)
+        .style("stroke-dashoffset", null);
+    }
   });
 
-  if (selectedPlayer) {
-    drawSpotlightStops(routeData);
-  } else {
-    drawOverviewHotspots(routeData);
+  if (state.showHotspots) {
+    if (selectedPlayer) {
+      drawSpotlightStops(routeData);
+    } else {
+      drawOverviewHotspots(routeData);
+    }
   }
 
   applyZoomResponsiveSizing(currentZoomK);
@@ -1113,8 +1435,8 @@ function drawSpotlightStops(routeData) {
 
   const adjustedStops = nudgeStops(stops).map(d => ({
     ...d,
-    baseScreenDotR: d.isStart ? 5.2 : 7.2,
-    baseScreenBadgeR: d.isStart ? 0 : 17.2,
+    baseScreenDotR: d.isStart ? 5.8 : 7.2,
+    baseScreenBadgeR: d.isStart ? 15.8 : 17.2,
     baseScreenFontSize: 15.2
   }));
 
@@ -1132,11 +1454,11 @@ function drawSpotlightStops(routeData) {
     .attr("class", d => `club-dot ${d.isStart ? 'is-start' : 'is-end'}`)
     .attr("r", d => d.baseScreenDotR);
 
-  stopGroups.filter(d => !d.isStart).append("circle")
+  stopGroups.append("circle")
     .attr("class", "stop-badge")
     .attr("r", d => d.baseScreenBadgeR);
 
-  stopGroups.filter(d => !d.isStart).append("text")
+  stopGroups.append("text")
     .attr("class", "route-order")
     .attr("text-anchor", "middle")
     .attr("dominant-baseline", "middle")
@@ -1255,6 +1577,7 @@ function spotlightStopTooltipHtml(d) {
 
 function showTooltip(event, html) {
   els.tooltip.hidden = false;
+  els.tooltip.classList.remove("is-playback-focus");
   els.tooltip.innerHTML = html;
   moveTooltip(event);
 }
@@ -1267,6 +1590,65 @@ function moveTooltip(event) {
 
 function hideTooltip() {
   els.tooltip.hidden = true;
+  els.tooltip.classList.remove("is-playback-focus");
+}
+
+function showPlaybackCaption(move, phase = "arrival") {
+  if (!els.playbackCaption) return;
+  const text = playbackCaptionText(move, phase);
+  if (captionHideTimer) {
+    window.clearTimeout(captionHideTimer);
+    captionHideTimer = null;
+  }
+  els.playbackCaption.hidden = false;
+  els.playbackCaption.classList.remove("is-visible");
+  els.playbackCaption.innerHTML = `<div class="playback-caption-text">${text}</div>`;
+  void els.playbackCaption.offsetWidth;
+  els.playbackCaption.classList.add("is-visible");
+}
+
+function hidePlaybackCaption() {
+  if (!els.playbackCaption) return;
+  els.playbackCaption.classList.remove("is-visible");
+  if (captionHideTimer) {
+    window.clearTimeout(captionHideTimer);
+  }
+  captionHideTimer = window.setTimeout(() => {
+    if (!els.playbackCaption) return;
+    els.playbackCaption.hidden = true;
+    els.playbackCaption.innerHTML = "";
+    captionHideTimer = null;
+  }, 720);
+}
+
+function hardHidePlaybackCaption() {
+  if (!els.playbackCaption) return;
+  if (captionHideTimer) {
+    window.clearTimeout(captionHideTimer);
+    captionHideTimer = null;
+  }
+  els.playbackCaption.classList.remove("is-visible");
+  els.playbackCaption.hidden = true;
+  els.playbackCaption.innerHTML = "";
+}
+
+function playbackCaptionText(move, phase = "arrival") {
+  const season = move.season || "";
+  const country = move.to_team_country || move.from_team_country || "Unknown country";
+
+  if (phase === "origin") {
+    return `Starting at ${move.from_team_name}, ${move.from_team_country || "Unknown country"} in ${season}.`;
+  }
+
+  const verb = move.move_type === "loan"
+    ? "Loaned to"
+    : move.move_type === "free"
+      ? "Joined"
+      : move.move_type === "loan_end"
+        ? "Returned to"
+        : "Transferred to";
+
+  return `${verb} ${move.to_team_name}, ${country} in ${season}.`;
 }
 
 function normalizeSearchText(value) {
