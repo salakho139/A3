@@ -33,7 +33,7 @@ const CLUB_COORD_OVERRIDES = {
 };
 
 const state = {
-  season: 2016,
+  season: 2021,
   leagues: new Set(["GB1", "ES1", "L1", "FR1"]),
   windows: new Set(["s", "w"]),
   moveTypes: new Set(["transfer", "loan", "free", "loan_end"]),
@@ -361,7 +361,7 @@ function zoomToSegment(startLon, startLat, endLon, endLat, duration = 900) {
 
 function initControls() {
   const seasons = d3.extent(data, d => d.season);
-  state.season = 2016 >= seasons[0] && 2016 <= seasons[1] ? 2016 : seasons[0];
+  state.season = 2021 >= seasons[0] && 2021 <= seasons[1] ? 2021 : seasons[0];
   els.seasonSlider.min = seasons[0];
   els.seasonSlider.max = seasons[1];
   els.seasonSlider.value = state.season;

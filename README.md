@@ -13,20 +13,6 @@ This project is my submission for Assignment 3 in CSC316. It is an interactive D
 ## How to Run
 The project should be run through a local server because the page loads external CSV and JSON files.
 
-### Option 1: VS Code Live Server
-Open the folder in VS Code and run the project using Live Server.
-
-### Option 2: Python HTTP Server
-From the project folder, run:
-
-```bash
-python -m http.server 8000
-```
-
-Then open:
-
-`http://localhost:8000`
-
 ## Visualization Summary
 The visualization supports two main views:
 
