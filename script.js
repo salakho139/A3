@@ -1122,7 +1122,7 @@ function updateHeader(selectedPlayer, selectedClub, seasonRows, visibleRows) {
   } else {
     const countriesTouched = new Set(seasonRows.flatMap(d => [d.from_team_country, d.to_team_country]).filter(Boolean)).size;
     const leagueCount = state.leagues.size;
-    els.storyline.textContent = `Start with the transfer market, then switch to a player story. In overview mode the map shows a thin route cloud; in player mode it becomes a narrated journey with numbered stops.`;
+    els.storyline.textContent = `This Football Transfers Tracker focuses on Europe's seven major leagues and maps transfer records from 2009 to 2021. Use Transfer Filters and League Quick Picks for league pulse, Career Explorer for player journeys, and the spending view for club all-time transfer maps.`;
     els.mapInsight.textContent = `${formatNumber(seasonRows.length)} matched moves satisfy the current filters across ${leagueCount} selected league${leagueCount === 1 ? "" : "s"}, connecting ${countriesTouched} countries in this season.`;
   }
 }
@@ -1236,6 +1236,7 @@ function updatePlaybackTimeline(selectedPlayer, visibleRows, allRows) {
       <div class="timeline-main">
         <strong>Move ${d.career_move_no || 0} · ${d.season}${d.window_label ? ` · ${d.window_label}` : ""}</strong>
         <span>${d.from_team_name} → ${d.to_team_name}</span>
+        ${timelineFeeText(d) ? `<span class="timeline-fee">${timelineFeeText(d)}</span>` : ""}
       </div>
     </div>
   `;
@@ -1429,6 +1430,7 @@ function drawSpotlightStops(routeData) {
       season: d.season,
       isStart: false,
       moveType: d.move_type,
+      transferFeeAmnt: d.transfer_fee_amnt,
       isLatest: d.isLatest
     });
   });
@@ -1568,11 +1570,26 @@ function hotspotTooltipHtml(d) {
 }
 
 function spotlightStopTooltipHtml(d) {
+  const feeText = stopFeeText(d);
   return `
     <div class="kicker">${d.isStart ? "Starting point" : `Move ${d.moveNo}`}</div>
     <strong>${d.team}</strong>
-    ${d.country || "Country unavailable"}${d.season ? `<br/>Reached in ${d.season}` : ""}
+    ${d.country || "Country unavailable"}${d.season ? `<br/>Reached in ${d.season}` : ""}${feeText ? `<br/>${feeText}` : ""}
   `;
+}
+
+function timelineFeeText(d) {
+  if (!d || !Number.isFinite(d.transfer_fee_amnt) || d.transfer_fee_amnt <= 0) return "";
+  if (d.move_type === "loan") return `Loan fee: ${formatMoneyCompact(d.transfer_fee_amnt)}`;
+  if (d.move_type === "transfer") return `Transfer fee: ${formatMoneyCompact(d.transfer_fee_amnt)}`;
+  return "";
+}
+
+function stopFeeText(d) {
+  if (!d || !Number.isFinite(d.transferFeeAmnt) || d.transferFeeAmnt <= 0) return "";
+  if (d.moveType === "loan") return `Loan fee: ${formatMoneyCompact(d.transferFeeAmnt)}`;
+  if (d.moveType === "transfer") return `Transfer fee: ${formatMoneyCompact(d.transferFeeAmnt)}`;
+  return "";
 }
 
 function showTooltip(event, html) {

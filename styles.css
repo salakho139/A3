@@ -1233,6 +1233,11 @@ h2 {
   line-height: 1.35;
 }
 
+.timeline-main .timeline-fee {
+  color: #c6fdff;
+  font-weight: 700;
+}
+
 .timeline-pill {
   border-radius: 999px;
   padding: 6px 10px;
