@@ -40,7 +40,7 @@ const state = {
   showMap: true,
   showHotspots: true,
   showLines: true,
-  animateOverview: false,
+  animateOverview: true,
   selectedPlayerId: null,
   playing: false,
   playingMode: null,
@@ -1086,15 +1086,7 @@ function limitForMap(rows) {
       .slice(0, lineCap);
   }
 
-  if (!state.animateOverview) return limited;
-  const animationCap = 70;
-  if (limited.length <= animationCap) return limited;
-  return [...limited]
-    .sort((a, b) =>
-      d3.descending(a.transfer_fee_amnt || 0, b.transfer_fee_amnt || 0) ||
-      d3.descending(a.market_val_amnt || 0, b.market_val_amnt || 0)
-    )
-    .slice(0, animationCap);
+  return limited;
 }
 
 function updateHeader(selectedPlayer, selectedClub, seasonRows, visibleRows) {
@@ -1165,11 +1157,8 @@ function updateStats(selectedPlayer, selectedClub, seasonRows, visibleRows) {
     const avgAge = d3.mean(seasonRows, d => d.player_age);
     const disclosedFees = seasonRows.filter(d => d.transfer_fee_amnt).length;
     const totalFees = d3.sum(seasonRows, d => d.transfer_fee_amnt || 0);
-    const animationCap = 70;
     const lineCap = 210;
-    const mappedSub = state.animateOverview && seasonRows.length > animationCap
-      ? `Animation is on: top ${animationCap} routes drawn for smoother playback`
-      : seasonRows.length > lineCap
+    const mappedSub = seasonRows.length > lineCap
         ? `Top ${lineCap} routes drawn for readability`
         : "Every matched route is shown";
 
